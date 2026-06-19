@@ -30,6 +30,7 @@ export const testImageProvider: ImageProvider = {
   models: [
     "test-image",
     "gpt-image-1",
+    "gpt-image-2",
     "dall-e-2",
     "dall-e-3",
     "gpt-4.1-mini",
