@@ -12,7 +12,7 @@ Refer to `node_modules/nitro/dist/docs/README.md` when working on server (your k
 
 
 
-# CLAUDE.md
+# AGENTS.md
 
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
