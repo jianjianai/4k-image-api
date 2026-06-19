@@ -26,7 +26,10 @@ export class OpenAIClientError extends Error {
   }
 }
 
-export const toOpenAIErrorResponse = (error: unknown): Response => {
+export const toOpenAIErrorResponse = (
+  error: unknown,
+  headers?: HeadersInit,
+): Response => {
   if (error instanceof OpenAIClientError) {
     return Response.json(
       {
@@ -38,7 +41,7 @@ export const toOpenAIErrorResponse = (error: unknown): Response => {
           reason: error.message,
         },
       },
-      { status: error.status },
+      { status: error.status, headers },
     );
   }
 
@@ -55,6 +58,6 @@ export const toOpenAIErrorResponse = (error: unknown): Response => {
         reason: message,
       },
     },
-    { status: 400 },
+    { status: 400, headers },
   );
 };

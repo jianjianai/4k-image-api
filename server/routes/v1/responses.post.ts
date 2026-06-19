@@ -1,3 +1,8 @@
 import { defineOpenAIImageHandler } from "../../utils/openai-image/handler.ts";
+import { parseResponsesImageRequest } from "../../utils/openai-image/parsers/responses.ts";
+import { toOpenAIResponse } from "../../utils/openai-image/response.ts";
 
-export default defineOpenAIImageHandler("responses");
+export default defineOpenAIImageHandler(
+  parseResponsesImageRequest,
+  toOpenAIResponse,
+);

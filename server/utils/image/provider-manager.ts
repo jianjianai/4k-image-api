@@ -27,7 +27,7 @@ export type ImageProviderManager = {
   invoke: (input: ImageInput) => Promise<ImageOutput>;
 };
 
-export const createImageProviderManager = (
+const createImageProviderManager = (
   initialProviders: ImageProviders = [],
 ): ImageProviderManager => {
   const providers = [...initialProviders];

@@ -4,13 +4,15 @@
     "build": "vite build",
     "dev": "vite dev",
     "bench:image": "node scripts/image-benchmark.mjs",
-    "bench:image-errors": "node scripts/image-error-benchmark.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@types/node": "latest",
     "nitro": "latest",
     "typescript": "latest",
-    "vite": "latest"
+    "vite": "latest",
+    "vitest": "^4.1.9"
   }
 }

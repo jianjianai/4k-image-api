@@ -8,3 +8,4 @@ dist
 .env.local
 .dev-server*.log
 benchmark-output/
+.codegraph

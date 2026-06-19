@@ -5,23 +5,20 @@ import {
   imageProviderManager,
 } from "../image.ts";
 import { OpenAIClientError, toOpenAIErrorResponse } from "./errors.ts";
-import { getOpenAIImageParser } from "./parsers.ts";
 import { readOpenAIRequest } from "./request.ts";
-import { toOpenAIImageResponse, toOpenAIResponse } from "./response.ts";
-import type { OpenAIImageEndpoint } from "./types.ts";
+import type { OpenAIImageParser, OpenAIImageResponder } from "./types.ts";
 
-export const defineOpenAIImageHandler = (endpoint: OpenAIImageEndpoint) =>
+export const defineOpenAIImageHandler = (
+  parseRequest: OpenAIImageParser,
+  formatResponse: OpenAIImageResponder,
+) =>
   defineHandler(async (event) => {
     try {
       const request = await readOpenAIRequest(event.req);
-      const input = await getOpenAIImageParser(endpoint)(request);
+      const input = await parseRequest(request);
       const output = await imageProviderManager.invoke(input);
 
-      if (endpoint === "responses") {
-        return toOpenAIResponse(output, input);
-      }
-
-      return toOpenAIImageResponse(output, input);
+      return formatResponse(output, input);
     } catch (error) {
       return toOpenAIErrorResponse(normalizeOpenAIError(error));
     }

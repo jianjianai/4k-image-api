@@ -1,4 +1,3 @@
-import { imageFormatToMimeType } from "../mime.ts";
 import type { ImageMimeType, ImageProvider } from "../types.ts";
 
 const pngBytes = new Uint8Array([
@@ -74,4 +73,16 @@ const getFixtureBytes = (mimeType: ImageMimeType): Uint8Array => {
   }
 
   return pngBytes;
+};
+
+const imageFormatToMimeType = (format: unknown): ImageMimeType => {
+  if (format === "jpeg" || format === "jpg") {
+    return "image/jpeg";
+  }
+
+  if (format === "webp") {
+    return "image/webp";
+  }
+
+  return "image/png";
 };
