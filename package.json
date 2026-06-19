@@ -4,6 +4,7 @@
     "build": "vite build",
     "dev": "vite dev",
     "bench:image": "node scripts/image-benchmark.mjs",
+    "bench:image-errors": "node scripts/image-error-benchmark.mjs",
     "preview": "vite preview"
   },
   "devDependencies": {

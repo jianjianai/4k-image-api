@@ -4,6 +4,7 @@ import {
   ImageProviderNotFoundError,
   imageProviderManager,
 } from "../image.ts";
+import { OpenAIClientError, toOpenAIErrorResponse } from "./errors.ts";
 import { getOpenAIImageParser } from "./parsers.ts";
 import { readOpenAIRequest } from "./request.ts";
 import { toOpenAIImageResponse, toOpenAIResponse } from "./response.ts";
@@ -22,29 +23,28 @@ export const defineOpenAIImageHandler = (endpoint: OpenAIImageEndpoint) =>
 
       return toOpenAIImageResponse(output, input);
     } catch (error) {
-      return toOpenAIError(error);
+      return toOpenAIErrorResponse(normalizeOpenAIError(error));
     }
   });
 
-const toOpenAIError = (error: unknown): Response => {
-  const message =
-    error instanceof Error ? error.message : "Unexpected image generation error.";
-  const status =
-    error instanceof ImageModelRequiredError
-      ? 400
-      : error instanceof ImageProviderNotFoundError
-        ? 404
-        : 400;
-
-  return Response.json(
-    {
-      error: {
-        message,
-        type: "invalid_request_error",
-        param: null,
-        code: null,
+const normalizeOpenAIError = (error: unknown): unknown => {
+  if (error instanceof ImageProviderNotFoundError) {
+    return new OpenAIClientError(
+      `The model '${error.model}' does not exist or no image provider is registered for it.`,
+      {
+        code: "model_not_found",
+        param: "model",
+        status: 404,
       },
-    },
-    { status },
-  );
+    );
+  }
+
+  if (error instanceof ImageModelRequiredError) {
+    return new OpenAIClientError("Image model is required.", {
+      code: "model_required",
+      param: "model",
+    });
+  }
+
+  return error;
 };

@@ -1,4 +1,5 @@
 import type { ImageAsset, ImageMimeType } from "../image.ts";
+import { OpenAIClientError } from "./errors.ts";
 
 const defaultMimeType: ImageMimeType = "image/png";
 const supportedMimeTypes = new Set<ImageMimeType>([
@@ -44,7 +45,13 @@ export const toImageAsset = async (value: unknown): Promise<ImageAsset> => {
     };
   }
 
-  throw new Error("Image file must be a multipart file or base64 string.");
+  throw new OpenAIClientError(
+    "Image file must be a multipart file or base64 string.",
+    {
+      code: "invalid_image",
+      param: "image",
+    },
+  );
 };
 
 export const normalizeImageMimeType = (value: unknown): ImageMimeType => {

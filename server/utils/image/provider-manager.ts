@@ -12,8 +12,11 @@ export class ImageModelRequiredError extends Error {
 }
 
 export class ImageProviderNotFoundError extends Error {
+  model: string;
+
   constructor(model: string) {
     super(`No image provider supports model: ${model}`);
+    this.model = model;
   }
 }
 
