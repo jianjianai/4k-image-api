@@ -1,3 +1,5 @@
+import { getOpenAICorsHeaders } from "./cors.ts";
+
 export type OpenAIErrorCode =
   | "invalid_request"
   | "invalid_content_type"
@@ -28,8 +30,10 @@ export class OpenAIClientError extends Error {
 
 export const toOpenAIErrorResponse = (
   error: unknown,
-  headers?: HeadersInit,
+  request?: Request,
 ): Response => {
+  const headers = request ? getOpenAICorsHeaders(request) : undefined;
+
   if (error instanceof OpenAIClientError) {
     return Response.json(
       {

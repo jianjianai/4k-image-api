@@ -55,6 +55,48 @@ describe("OpenAI image routes", () => {
     });
   });
 
+  it("returns readable OpenAI JSON errors for responses image model failures", async () => {
+    const response = await server.fetch("/v1/responses", {
+      method: "POST",
+      headers: {
+        accept: "*/*",
+        authorization: "Bearer test",
+        "cache-control": "no-cache",
+        "content-type": "application/json",
+        origin: "http://example.test",
+        pragma: "no-cache",
+      },
+      body: JSON.stringify({
+        model: "missing-responses-image-model",
+        input:
+          "Use the following text as the complete prompt. Do not rewrite it:\n生成一张小猫的图片",
+        tools: [
+          {
+            type: "image_generation",
+            action: "generate",
+            size: "2480x3328",
+            output_format: "png",
+            moderation: "auto",
+            quality: "auto",
+          },
+        ],
+        tool_choice: "required",
+      }),
+    });
+
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "http://example.test",
+    );
+    expect(response.headers.get("access-control-allow-credentials")).toBe("true");
+
+    await expectOpenAIError(response, {
+      status: 404,
+      code: "model_not_found",
+      param: "model",
+      messageIncludes: "missing-responses-image-model",
+    });
+  });
+
   it("returns OpenAI JSON errors for unknown endpoints", async () => {
     const response = await server.fetch("/v1/nope", {
       method: "POST",

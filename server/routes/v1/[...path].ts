@@ -10,5 +10,6 @@ export default defineHandler((event) =>
         status: 404,
       },
     ),
+    event.req,
   ),
 );

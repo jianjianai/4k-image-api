@@ -12,13 +12,9 @@ describe("toOpenAIErrorResponse", () => {
         param: "body",
         status: 422,
       }),
-      {
-        "x-test": "1",
-      },
     );
 
     expect(response.status).toBe(422);
-    expect(response.headers.get("x-test")).toBe("1");
 
     const payload = await response.json();
 

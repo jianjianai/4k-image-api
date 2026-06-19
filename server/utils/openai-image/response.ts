@@ -41,11 +41,19 @@ export const toOpenAIResponse = (
   created_at: Math.floor(Date.now() / 1000),
   status: "completed",
   model: input.model,
-  output: output.images.map((image) => ({
-    type: "image_generation_call",
-    status: "completed",
-    result: bytesToBase64(image.bytes),
-  })),
+  output: output.images.map((image) => {
+    const item: Record<string, unknown> = {
+      type: "image_generation_call",
+      status: "completed",
+      result: bytesToBase64(image.bytes),
+    };
+
+    if (image.revisedPrompt) {
+      item.revised_prompt = image.revisedPrompt;
+    }
+
+    return item;
+  }),
   output_text: "",
   usage: output.usage,
 });

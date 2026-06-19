@@ -33,6 +33,7 @@ export const testImageProvider: ImageProvider = {
     "dall-e-2",
     "dall-e-3",
     "gpt-4.1-mini",
+    "gpt-5.5",
   ],
   invoke: async (input) => {
     const count = Math.max(1, Math.min(input.n ?? 1, 10));

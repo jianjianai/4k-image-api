@@ -4,6 +4,7 @@ import {
   ImageProviderNotFoundError,
   imageProviderManager,
 } from "../image.ts";
+import { getOpenAICorsHeaders } from "./cors.ts";
 import { OpenAIClientError, toOpenAIErrorResponse } from "./errors.ts";
 import { readOpenAIRequest } from "./request.ts";
 import type { OpenAIImageParser, OpenAIImageResponder } from "./types.ts";
@@ -18,9 +19,11 @@ export const defineOpenAIImageHandler = (
       const input = await parseRequest(request);
       const output = await imageProviderManager.invoke(input);
 
-      return formatResponse(output, input);
+      return Response.json(formatResponse(output, input), {
+        headers: getOpenAICorsHeaders(event.req),
+      });
     } catch (error) {
-      return toOpenAIErrorResponse(normalizeOpenAIError(error));
+      return toOpenAIErrorResponse(normalizeOpenAIError(error), event.req);
     }
   });
 
