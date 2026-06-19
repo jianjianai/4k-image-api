@@ -3,6 +3,7 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite dev",
+    "bench:image": "node scripts/image-benchmark.mjs",
     "preview": "vite preview"
   },
   "devDependencies": {

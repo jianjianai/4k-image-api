@@ -1,5 +1,7 @@
 export type ImageMimeType = "image/png" | "image/jpeg" | "image/webp";
 
+export type ImageResponseFormat = "b64_json" | "url";
+
 export type ImageAsset = {
   data: Uint8Array;
   mimeType: ImageMimeType;
@@ -20,6 +22,9 @@ export type ImageInput = {
   quality?: string;
   format?: string;
   background?: string;
+  responseFormat?: ImageResponseFormat;
+  stream?: boolean;
+  options?: Record<string, unknown>;
 
   source: {
     protocol: "openai";

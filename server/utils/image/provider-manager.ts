@@ -5,6 +5,18 @@ import type {
   ImageProviders,
 } from "./types.ts";
 
+export class ImageModelRequiredError extends Error {
+  constructor() {
+    super("Image model is required.");
+  }
+}
+
+export class ImageProviderNotFoundError extends Error {
+  constructor(model: string) {
+    super(`No image provider supports model: ${model}`);
+  }
+}
+
 export type ImageProviderManager = {
   add: (provider: ImageProvider) => void;
   remove: (providerId: string) => boolean;
@@ -44,7 +56,7 @@ export const createImageProviderManager = (
 
     invoke: async (input) => {
       if (!input.model) {
-        throw new Error("Image model is required.");
+        throw new ImageModelRequiredError();
       }
 
       const provider = providers.find((provider) =>
@@ -52,7 +64,7 @@ export const createImageProviderManager = (
       );
 
       if (!provider) {
-        throw new Error(`No image provider supports model: ${input.model}`);
+        throw new ImageProviderNotFoundError(input.model);
       }
 
       return provider.invoke(input);
