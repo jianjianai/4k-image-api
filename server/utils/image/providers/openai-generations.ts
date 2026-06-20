@@ -1,10 +1,13 @@
 import type {
+  ImageCreateVariationParams,
+  ImageEditParamsNonStreaming,
   ImageGenerateParamsNonStreaming,
   ImagesResponse,
 } from "openai/resources/images";
 import {
   base64ImageToBytes,
   createOpenAIClient,
+  imageAssetToFile,
   imageFormatToMimeType,
   missingBase64ImageDataError,
   normalizeBackground,
@@ -27,9 +30,13 @@ export const createOpenAIImageGenerationProvider = (
 ): ImageProvider => ({
   id: config.id,
   models: config.models,
-  supports: (input) => input.source.endpoint === "images.generations",
   invoke: async (input) => {
-    const response = await client.images.generate(toImageGenerateParams(input));
+    const response =
+      input.action === "edit"
+        ? await client.images.edit(await toImageEditParams(input))
+        : input.images?.length
+          ? await client.images.createVariation(await toImageVariationParams(input))
+          : await client.images.generate(toImageGenerateParams(input));
 
     return imagesResponseToImageOutput(response, input);
   },
@@ -52,6 +59,73 @@ const toImageGenerateParams = (
   user: normalizeString(input.options?.user),
   stream: false,
 });
+
+const toImageEditParams = async (
+  input: ImageInput,
+): Promise<ImageEditParamsNonStreaming> => ({
+  image: await imageAssetsToFiles(input.images),
+  prompt: input.prompt ?? "",
+  mask: input.mask ? await imageAssetToFile(input.mask) : undefined,
+  model: input.model,
+  n: input.n,
+  size: input.size,
+  quality: normalizeEditImageQuality(input.quality),
+  background: normalizeBackground(input.background),
+  output_format: normalizeImageFormat(input.format),
+  input_fidelity: normalizeInputFidelity(input.options?.inputFidelity),
+  output_compression: normalizeNumber(input.options?.outputCompression),
+  partial_images: normalizeNumber(input.options?.partialImages),
+  response_format: input.responseFormat,
+  user: normalizeString(input.options?.user),
+  stream: false,
+});
+
+const toImageVariationParams = async (
+  input: ImageInput,
+): Promise<ImageCreateVariationParams> => {
+  const [image] = await imageAssetsToFiles(input.images);
+
+  return {
+    image,
+    model: input.model,
+    n: input.n,
+    size: normalizeVariationSize(input.size),
+    response_format: input.responseFormat,
+    user: normalizeString(input.options?.user),
+  };
+};
+
+const imageAssetsToFiles = async (
+  assets: ImageInput["images"],
+) => Promise.all((assets ?? []).map(imageAssetToFile));
+
+const normalizeInputFidelity = (
+  value: unknown,
+): "high" | "low" | undefined => {
+  if (value === "high" || value === "low") {
+    return value;
+  }
+
+  return undefined;
+};
+
+const normalizeEditImageQuality = (
+  value: unknown,
+): "standard" | "low" | "medium" | "high" | "auto" | undefined => {
+  const quality = normalizeImageQuality(value);
+
+  return quality === "hd" ? undefined : quality;
+};
+
+const normalizeVariationSize = (
+  value: unknown,
+): "256x256" | "512x512" | "1024x1024" | undefined => {
+  if (value === "256x256" || value === "512x512" || value === "1024x1024") {
+    return value;
+  }
+
+  return undefined;
+};
 
 const imagesResponseToImageOutput = (
   response: ImagesResponse,

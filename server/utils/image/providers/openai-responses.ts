@@ -5,6 +5,7 @@ import type {
 import {
   base64ImageToBytes,
   createOpenAIClient,
+  imageAssetToDataURL,
   imageFormatToMimeType,
   missingBase64ImageDataError,
   normalizeBackground,
@@ -25,7 +26,6 @@ export const createOpenAIResponsesImageProvider = (
 ): ImageProvider => ({
   id: config.id,
   models: config.models,
-  supports: (input) => input.source.endpoint === "responses",
   invoke: async (input) => {
     const response = await client.responses.create(toResponseCreateParams(input));
 
@@ -40,15 +40,20 @@ const toResponseCreateParams = (
 
   return {
     model: input.model,
-    input: input.prompt,
+    input: toResponseInput(input),
     tools: [
       {
         type: "image_generation",
+        action: input.action,
         model: input.model,
         size: input.size,
         quality: normalizeResponseImageQuality(input.quality),
         output_format: normalizeImageFormat(input.format),
         background: normalizeBackground(input.background),
+        input_fidelity: normalizeInputFidelity(input.options?.inputFidelity),
+        input_image_mask: input.mask
+          ? { image_url: imageAssetToDataURL(input.mask) }
+          : undefined,
         moderation: normalizeModeration(toolOptions?.moderation),
         output_compression: normalizeNumber(toolOptions?.output_compression),
         partial_images: normalizeNumber(toolOptions?.partial_images),
@@ -59,6 +64,33 @@ const toResponseCreateParams = (
   };
 };
 
+const toResponseInput = (input: ImageInput): ResponseCreateParamsNonStreaming["input"] => {
+  if (!input.images?.length) {
+    return input.prompt;
+  }
+
+  return [
+    {
+      role: "user",
+      content: [
+        ...(input.prompt
+          ? [
+              {
+                type: "input_text" as const,
+                text: input.prompt,
+              },
+            ]
+          : []),
+        ...input.images.map((image) => ({
+          type: "input_image" as const,
+          image_url: imageAssetToDataURL(image),
+          detail: "auto" as const,
+        })),
+      ],
+    },
+  ];
+};
+
 const getToolOptions = (
   input: ImageInput,
 ): Record<string, unknown> | undefined => {
@@ -67,6 +99,16 @@ const getToolOptions = (
   return typeof tool === "object" && tool !== null
     ? (tool as Record<string, unknown>)
     : undefined;
+};
+
+const normalizeInputFidelity = (
+  value: unknown,
+): "high" | "low" | undefined => {
+  if (value === "high" || value === "low") {
+    return value;
+  }
+
+  return undefined;
 };
 
 const responsesResponseToImageOutput = (

@@ -1,8 +1,9 @@
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import { OpenAIClientError } from "../../openai-image/errors.ts";
 import { base64ToBytes } from "../../openai-image/assets.ts";
+import type { Uploadable } from "openai/uploads";
 import type { OpenAIProviderConfig } from "../provider-config.ts";
-import type { ImageMimeType, ImageOutput } from "../types.ts";
+import type { ImageAsset, ImageMimeType, ImageOutput } from "../types.ts";
 
 export type OpenAIImageClient = Pick<OpenAI, "images" | "responses">;
 
@@ -18,6 +19,14 @@ export const createOpenAIClient = (config: OpenAIProviderConfig): OpenAI =>
 
 export const base64ImageToBytes = (base64: string): Uint8Array =>
   base64ToBytes(base64);
+
+export const imageAssetToFile = async (asset: ImageAsset): Promise<Uploadable> =>
+  toFile(asset.data, asset.filename ?? "image", {
+    type: asset.mimeType,
+  });
+
+export const imageAssetToDataURL = (asset: ImageAsset): string =>
+  `data:${asset.mimeType};base64,${Buffer.from(asset.data).toString("base64")}`;
 
 export const usageToImageUsage = (
   usage: {

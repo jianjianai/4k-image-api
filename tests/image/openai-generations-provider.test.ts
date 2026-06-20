@@ -21,7 +21,11 @@ describe("createOpenAIImageGenerationProvider", () => {
       },
     });
     const provider = createOpenAIImageGenerationProvider(config(), {
-      images: { generate },
+      images: {
+        createVariation: vi.fn(),
+        edit: vi.fn(),
+        generate,
+      },
       responses: { create: vi.fn() },
     } as never);
 
@@ -40,17 +44,6 @@ describe("createOpenAIImageGenerationProvider", () => {
       },
     });
 
-    expect(provider.supports?.(baseInput())).toBe(true);
-    expect(
-      provider.supports?.({
-        ...baseInput(),
-        source: {
-          protocol: "openai",
-          endpoint: "responses",
-          raw: {},
-        },
-      }),
-    ).toBe(false);
     expect(generate).toHaveBeenCalledWith({
       prompt: "draw a cat",
       model: "gpt-image-1",
@@ -79,6 +72,80 @@ describe("createOpenAIImageGenerationProvider", () => {
       totalTokens: 5,
     });
   });
+
+  it("converts edit inputs to SDK image edits", async () => {
+    const edit = vi.fn().mockResolvedValue({
+      output_format: "png",
+      data: [{ b64_json: pngBase64 }],
+    });
+    const provider = createOpenAIImageGenerationProvider(config(), {
+      images: {
+        createVariation: vi.fn(),
+        edit,
+        generate: vi.fn(),
+      },
+      responses: { create: vi.fn() },
+    } as never);
+
+    await provider.invoke({
+      ...baseInput(),
+      action: "edit",
+      images: [imageAsset("source.png")],
+      mask: imageAsset("mask.png"),
+      quality: "hd",
+      options: {
+        inputFidelity: "high",
+        outputCompression: 90,
+        user: "user-1",
+      },
+    });
+
+    expect(edit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: "draw a cat",
+        model: "gpt-image-1",
+        image: [expect.any(File)],
+        mask: expect.any(File),
+        quality: undefined,
+        input_fidelity: "high",
+        output_compression: 90,
+        user: "user-1",
+        stream: false,
+      }),
+    );
+  });
+
+  it("converts image-only generate inputs to SDK variations", async () => {
+    const createVariation = vi.fn().mockResolvedValue({
+      data: [{ b64_json: pngBase64 }],
+    });
+    const provider = createOpenAIImageGenerationProvider(config(), {
+      images: {
+        createVariation,
+        edit: vi.fn(),
+        generate: vi.fn(),
+      },
+      responses: { create: vi.fn() },
+    } as never);
+
+    await provider.invoke({
+      ...baseInput(),
+      prompt: undefined,
+      model: "dall-e-2",
+      images: [imageAsset("source.png")],
+      size: "1024x1024",
+      responseFormat: "b64_json",
+    });
+
+    expect(createVariation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        image: expect.any(File),
+        model: "dall-e-2",
+        size: "1024x1024",
+        response_format: "b64_json",
+      }),
+    );
+  });
 });
 
 const config = () => ({
@@ -97,4 +164,10 @@ const baseInput = (): ImageInput => ({
     endpoint: "images.generations",
     raw: {},
   },
+});
+
+const imageAsset = (filename: string) => ({
+  data: new Uint8Array([1, 2, 3]),
+  mimeType: "image/png" as const,
+  filename,
 });

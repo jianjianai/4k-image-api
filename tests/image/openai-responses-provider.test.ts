@@ -44,23 +44,13 @@ describe("createOpenAIResponsesImageProvider", () => {
     };
     const output = await provider.invoke(input);
 
-    expect(provider.supports?.(input)).toBe(true);
-    expect(
-      provider.supports?.({
-        ...input,
-        source: {
-          protocol: "openai",
-          endpoint: "images.generations",
-          raw: {},
-        },
-      }),
-    ).toBe(false);
     expect(create).toHaveBeenCalledWith({
       model: "gpt-image-1",
       input: "draw a cat",
       tools: [
         {
           type: "image_generation",
+          action: "generate",
           model: "gpt-image-1",
           size: "1024x1536",
           quality: "auto",
@@ -86,6 +76,77 @@ describe("createOpenAIResponsesImageProvider", () => {
       totalTokens: 9,
     });
   });
+
+  it("converts edit images to Responses input images and image masks", async () => {
+    const create = vi.fn().mockResolvedValue({
+      output: [
+        {
+          type: "image_generation_call",
+          result: pngBase64,
+          status: "completed",
+        },
+      ],
+    });
+    const provider = createOpenAIResponsesImageProvider(config(), {
+      images: { generate: vi.fn() },
+      responses: { create },
+    } as never);
+
+    await provider.invoke({
+      ...baseInput(),
+      action: "edit",
+      images: [imageAsset()],
+      mask: imageAsset(),
+      options: {
+        inputFidelity: "low",
+      },
+      source: {
+        protocol: "openai",
+        endpoint: "images.edits",
+        raw: {},
+      },
+    });
+
+    expect(create).toHaveBeenCalledWith({
+      model: "gpt-image-1",
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: "draw a cat",
+            },
+            {
+              type: "input_image",
+              image_url: "data:image/png;base64,AQID",
+              detail: "auto",
+            },
+          ],
+        },
+      ],
+      tools: [
+        {
+          type: "image_generation",
+          action: "edit",
+          model: "gpt-image-1",
+          size: undefined,
+          quality: undefined,
+          output_format: undefined,
+          background: undefined,
+          input_fidelity: "low",
+          input_image_mask: {
+            image_url: "data:image/png;base64,AQID",
+          },
+          moderation: undefined,
+          output_compression: undefined,
+          partial_images: undefined,
+        },
+      ],
+      tool_choice: "required",
+      stream: false,
+    });
+  });
 });
 
 const config = () => ({
@@ -104,4 +165,9 @@ const baseInput = (): ImageInput => ({
     endpoint: "responses",
     raw: {},
   },
+});
+
+const imageAsset = () => ({
+  data: new Uint8Array([1, 2, 3]),
+  mimeType: "image/png" as const,
 });

@@ -1,64 +1,62 @@
 import { describe, expect, it } from "vitest";
 import {
+  ImageModelRequiredError,
   ImageProviderNotFoundError,
   imageProviderManager,
 } from "../../server/utils/image/provider-manager.ts";
 import type { ImageInput, ImageProvider } from "../../server/utils/image.ts";
 
 describe("image provider manager", () => {
-  it("routes providers by model and supports predicate", async () => {
-    imageProviderManager.add(provider("routing-test-generations", "images.generations"));
-    imageProviderManager.add(provider("routing-test-responses", "responses"));
+  it("routes providers by model", async () => {
+    imageProviderManager.add(provider("routing-test-a", "routing-test-model-a"));
+    imageProviderManager.add(provider("routing-test-b", "routing-test-model-b"));
 
     try {
-      await expect(
-        imageProviderManager.invoke(input("images.generations")),
-      ).resolves.toMatchObject({
-        raw: "routing-test-generations",
-      });
-      await expect(
-        imageProviderManager.invoke(input("responses")),
-      ).resolves.toMatchObject({
-        raw: "routing-test-responses",
-      });
+      await expect(imageProviderManager.invoke(input("routing-test-model-a")))
+        .resolves.toMatchObject({
+          raw: "routing-test-a",
+        });
+      await expect(imageProviderManager.invoke(input("routing-test-model-b")))
+        .resolves.toMatchObject({
+          raw: "routing-test-b",
+        });
     } finally {
-      imageProviderManager.remove("routing-test-generations");
-      imageProviderManager.remove("routing-test-responses");
+      imageProviderManager.remove("routing-test-a");
+      imageProviderManager.remove("routing-test-b");
     }
   });
 
-  it("throws model not found when model matches but endpoint is unsupported", async () => {
-    imageProviderManager.add(provider("routing-test-generations", "images.generations"));
+  it("throws model not found when no provider has the requested model", async () => {
+    await expect(
+      imageProviderManager.invoke(input("routing-test-missing")),
+    ).rejects.toBeInstanceOf(ImageProviderNotFoundError);
+  });
 
-    try {
-      await expect(
-        imageProviderManager.invoke(input("responses")),
-      ).rejects.toBeInstanceOf(ImageProviderNotFoundError);
-    } finally {
-      imageProviderManager.remove("routing-test-generations");
-    }
+  it("requires an image model", async () => {
+    await expect(
+      imageProviderManager.invoke({
+        ...input("routing-test-model-a"),
+        model: undefined,
+      }),
+    ).rejects.toBeInstanceOf(ImageModelRequiredError);
   });
 });
 
-const provider = (
-  id: string,
-  endpoint: ImageInput["source"]["endpoint"],
-): ImageProvider => ({
+const provider = (id: string, model: string): ImageProvider => ({
   id,
-  models: ["routing-test-model"],
-  supports: (input) => input.source.endpoint === endpoint,
+  models: [model],
   invoke: async () => ({
     images: [],
     raw: id,
   }),
 });
 
-const input = (endpoint: ImageInput["source"]["endpoint"]): ImageInput => ({
+const input = (model: string): ImageInput => ({
   action: "generate",
-  model: "routing-test-model",
+  model,
   source: {
     protocol: "openai",
-    endpoint,
+    endpoint: "images.generations",
     raw: {},
   },
 });
