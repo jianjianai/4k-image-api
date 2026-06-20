@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      openai:
+        specifier: ^6.44.0
+        version: 6.44.0
     devDependencies:
       '@types/node':
         specifier: latest
@@ -538,6 +542,17 @@ packages:
 
   ohash@2.0.11:
     resolution: {integrity: sha512-RdR9FQrFwNBNXAr4GixM8YaRZRJ5PUWbKYbE5eOsrwAjJW0q2REGcf79oYPsLyskQCZG1PLN+S/K1V00joZAoQ==, tarball: https://registry.npmjs.org/ohash/-/ohash-2.0.11.tgz}
+
+  openai@6.44.0:
+    resolution: {integrity: sha512-09/gH+8jH0RgUwsgWHAaxsKGRT5zVZ95IaJUnqAWj6XejIBmnFRwq2WUIF37VtDEsmGrtPmvCs5+yBSeZGWvkA==, tarball: https://registry.npmjs.org/openai/-/openai-6.44.0.tgz}
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
 
   pathe@2.0.3:
     resolution: {integrity: sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==, tarball: https://registry.npmjs.org/pathe/-/pathe-2.0.3.tgz}
@@ -1158,6 +1173,8 @@ snapshots:
   ofetch@2.0.0-alpha.3: {}
 
   ohash@2.0.11: {}
+
+  openai@6.44.0: {}
 
   pathe@2.0.3: {}
 

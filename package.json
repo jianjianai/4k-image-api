@@ -14,5 +14,8 @@
     "typescript": "latest",
     "vite": "latest",
     "vitest": "^4.1.9"
+  },
+  "dependencies": {
+    "openai": "^6.44.0"
   }
 }

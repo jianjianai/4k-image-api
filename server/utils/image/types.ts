@@ -56,6 +56,7 @@ export type ImageOutput = {
 export type ImageProvider = {
   id: string;
   models: readonly string[];
+  supports?: (input: ImageInput) => boolean;
   invoke: (input: ImageInput) => Promise<ImageOutput>;
 };
 
