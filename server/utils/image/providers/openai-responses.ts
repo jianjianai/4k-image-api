@@ -45,7 +45,7 @@ const toResponseCreateParams = (
     tools: [
       {
         type: "image_generation",
-        action: input.action,
+        action: toResponseImageAction(input.action),
         model: input.model,
         size: input.size,
         quality: normalizeResponseImageQuality(input.quality),
@@ -65,7 +65,13 @@ const toResponseCreateParams = (
   };
 };
 
-const toResponseInput = (input: ImageInput): ResponseCreateParamsNonStreaming["input"] => {
+const toResponseImageAction = (
+  action: ImageInput["action"],
+): "generate" | "edit" => (action === "edit" ? "edit" : "generate");
+
+const toResponseInput = (
+  input: ImageInput,
+): ResponseCreateParamsNonStreaming["input"] => {
   if (!input.images?.length) {
     return input.prompt;
   }

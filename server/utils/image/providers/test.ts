@@ -26,7 +26,7 @@ const webpBytes = new Uint8Array([
 
 export const testImageProvider: ImageProvider = {
   id: "test-image-provider",
-  actionSupports: ["generate", "edit"],
+  actionSupports: ["generate", "edit", "variation"],
   models: [
     "test-image",
     "gpt-image-1",

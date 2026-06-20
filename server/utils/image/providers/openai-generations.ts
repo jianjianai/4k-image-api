@@ -1,5 +1,4 @@
 import type {
-  ImageCreateVariationParams,
   ImageEditParamsNonStreaming,
   ImageGenerateParamsNonStreaming,
   ImagesResponse,
@@ -34,13 +33,6 @@ export const createOpenAIImageGenerationProvider = (
   invoke: async (input) => {
     if (input.action === "edit") {
       const response = await client.images.edit(await toImageEditParams(input));
-      return imagesResponseToImageOutput(response, input);
-    }
-
-    if (input.images?.length) {
-      const response = await client.images.createVariation(
-        await toImageVariationParams(input),
-      );
       return imagesResponseToImageOutput(response, input);
     }
 
@@ -87,21 +79,6 @@ const toImageEditParams = async (
   stream: false,
 });
 
-const toImageVariationParams = async (
-  input: ImageInput,
-): Promise<ImageCreateVariationParams> => {
-  const [image] = await imageAssetsToFiles(input.images);
-
-  return {
-    image,
-    model: input.model,
-    n: input.n,
-    size: normalizeVariationSize(input.size),
-    response_format: input.responseFormat,
-    user: normalizeString(input.options?.user),
-  };
-};
-
 const imageAssetsToFiles = async (
   assets: ImageInput["images"],
 ) => Promise.all((assets ?? []).map(imageAssetToFile));
@@ -122,16 +99,6 @@ const normalizeEditImageQuality = (
   const quality = normalizeImageQuality(value);
 
   return quality === "hd" ? undefined : quality;
-};
-
-const normalizeVariationSize = (
-  value: unknown,
-): "256x256" | "512x512" | "1024x1024" | undefined => {
-  if (value === "256x256" || value === "512x512" || value === "1024x1024") {
-    return value;
-  }
-
-  return undefined;
 };
 
 const imagesResponseToImageOutput = (

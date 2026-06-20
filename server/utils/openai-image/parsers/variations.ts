@@ -11,7 +11,7 @@ import type { OpenAIImageRequest } from "../types.ts";
 export const parseImageVariationRequest = async (
   request: OpenAIImageRequest,
 ): Promise<ImageInput> => ({
-  action: "generate",
+  action: "variation",
   model: getString(request.model) ?? defaultImageModel,
   images: await getImageAssets(request.image),
   n: getNumber(request.n),

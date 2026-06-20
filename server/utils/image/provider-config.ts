@@ -2,11 +2,13 @@ import { useRuntimeConfig } from "nitro/runtime-config";
 
 export type ImageProviderConfig =
   | OpenAIImagesProviderConfig
+  | OpenAIVariationProviderConfig
   | OpenAIResponsesProviderConfig
   | TestImageProviderConfig;
 
 export type OpenAIProviderConfig =
   | OpenAIImagesProviderConfig
+  | OpenAIVariationProviderConfig
   | OpenAIResponsesProviderConfig;
 
 export type OpenAIProviderConfigBase = {
@@ -23,6 +25,10 @@ export type OpenAIProviderConfigBase = {
 
 export type OpenAIImagesProviderConfig = OpenAIProviderConfigBase & {
   type: "openai-images";
+};
+
+export type OpenAIVariationProviderConfig = OpenAIProviderConfigBase & {
+  type: "openai-variation";
 };
 
 export type OpenAIResponsesProviderConfig = OpenAIProviderConfigBase & {
@@ -59,7 +65,11 @@ export const parseImageProviderConfig = (
     throw new Error("Image provider config must be an object.");
   }
 
-  if (value.type === "openai-images" || value.type === "openai-responses") {
+  if (
+    value.type === "openai-images" ||
+    value.type === "openai-variation" ||
+    value.type === "openai-responses"
+  ) {
     return parseOpenAIProviderConfig(value, value.type);
   }
 
@@ -68,7 +78,7 @@ export const parseImageProviderConfig = (
   }
 
   throw new Error(
-    "Image provider config type must be 'openai-images', 'openai-responses', or 'test'.",
+    "Image provider config type must be 'openai-images', 'openai-variation', 'openai-responses', or 'test'.",
   );
 };
 

@@ -2,6 +2,7 @@ import { definePlugin } from "nitro";
 import { imageProviderManager } from "../utils/image.ts";
 import { readImageProviderConfigs } from "../utils/image/provider-config.ts";
 import { createOpenAIImageGenerationProvider } from "../utils/image/providers/openai-generations.ts";
+import { createOpenAIImageVariationProvider } from "../utils/image/providers/openai-variation.ts";
 import { createOpenAIResponsesImageProvider } from "../utils/image/providers/openai-responses.ts";
 import { testImageProvider } from "../utils/image/providers/test.ts";
 
@@ -20,6 +21,11 @@ export default definePlugin(() => {
 
     if (config.type === "openai-images") {
       imageProviderManager.add(createOpenAIImageGenerationProvider(config));
+      continue;
+    }
+
+    if (config.type === "openai-variation") {
+      imageProviderManager.add(createOpenAIImageVariationProvider(config));
       continue;
     }
 

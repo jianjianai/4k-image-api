@@ -47,7 +47,7 @@ describe("OpenAI image parsers", () => {
       response_format: "b64_json",
     });
 
-    expect(input.action).toBe("generate");
+    expect(input.action).toBe("variation");
     expect(input.model).toBe("dall-e-2");
     expect(input.images).toHaveLength(1);
     expect(input.responseFormat).toBe("b64_json");

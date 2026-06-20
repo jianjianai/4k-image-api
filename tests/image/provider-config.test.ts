@@ -40,6 +40,28 @@ describe("parseImageProviderConfig", () => {
     ).toThrow("must configure at least one model");
   });
 
+  it("parses OpenAI variation provider configs", () => {
+    expect(
+      parseImageProviderConfig({
+        id: "openai-variation",
+        type: "openai-variation",
+        apiKey: "sk-test",
+        models: ["dall-e-2"],
+      }),
+    ).toEqual({
+      id: "openai-variation",
+      type: "openai-variation",
+      enabled: undefined,
+      apiKey: "sk-test",
+      baseURL: undefined,
+      organization: undefined,
+      project: undefined,
+      models: ["dall-e-2"],
+      timeoutMs: undefined,
+      maxRetries: undefined,
+    });
+  });
+
   it("rejects legacy generic OpenAI configs", () => {
     expect(() =>
       parseImageProviderConfig({

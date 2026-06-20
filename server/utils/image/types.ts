@@ -2,7 +2,7 @@ export type ImageMimeType = "image/png" | "image/jpeg" | "image/webp";
 
 export type ImageResponseFormat = "b64_json" | "url";
 
-export type ImageAction = "generate" | "edit";
+export type ImageAction = "generate" | "edit" | "variation";
 
 export type ImageAsset = {
   data: Uint8Array;

@@ -116,38 +116,6 @@ describe("createOpenAIImageGenerationProvider", () => {
       }),
     );
   });
-
-  it("converts image-only generate inputs to SDK variations", async () => {
-    const createVariation = vi.fn().mockResolvedValue({
-      data: [{ b64_json: pngBase64 }],
-    });
-    const provider = createOpenAIImageGenerationProvider(config(), {
-      images: {
-        createVariation,
-        edit: vi.fn(),
-        generate: vi.fn(),
-      },
-      responses: { create: vi.fn() },
-    } as never);
-
-    await provider.invoke({
-      ...baseInput(),
-      prompt: undefined,
-      model: "dall-e-2",
-      images: [imageAsset("source.png")],
-      size: "1024x1024",
-      responseFormat: "b64_json",
-    });
-
-    expect(createVariation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        image: expect.any(File),
-        model: "dall-e-2",
-        size: "1024x1024",
-        response_format: "b64_json",
-      }),
-    );
-  });
 });
 
 const config = () => ({
