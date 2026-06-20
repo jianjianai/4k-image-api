@@ -32,13 +32,19 @@ export const createOpenAIImageGenerationProvider = (
   models: config.models,
   actionSupports: ["generate", "edit"],
   invoke: async (input) => {
-    const response =
-      input.action === "edit"
-        ? await client.images.edit(await toImageEditParams(input))
-        : input.images?.length
-          ? await client.images.createVariation(await toImageVariationParams(input))
-          : await client.images.generate(toImageGenerateParams(input));
+    if (input.action === "edit") {
+      const response = await client.images.edit(await toImageEditParams(input));
+      return imagesResponseToImageOutput(response, input);
+    }
 
+    if (input.images?.length) {
+      const response = await client.images.createVariation(
+        await toImageVariationParams(input),
+      );
+      return imagesResponseToImageOutput(response, input);
+    }
+
+    const response = await client.images.generate(toImageGenerateParams(input));
     return imagesResponseToImageOutput(response, input);
   },
 });
