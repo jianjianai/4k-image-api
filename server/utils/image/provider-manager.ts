@@ -4,6 +4,7 @@ import type {
   ImageProvider,
   ImageProviders,
 } from "./types.ts";
+import { imageProcessorManager } from "./processor-manager.ts";
 
 export class ImageModelRequiredError extends Error {
   constructor() {
@@ -72,7 +73,33 @@ const createImageProviderManager = (
         throw new ImageProviderNotFoundError(input.model);
       }
 
-      return provider.invoke(input);
+      if (!provider.processorId) {
+        return provider.invoke(input);
+      }
+
+      const processor = imageProcessorManager.get(provider.processorId);
+
+      if (!processor) {
+        throw new Error(
+          `Image processor '${provider.processorId}' is not registered for provider '${provider.id}'.`,
+        );
+      }
+
+      const context = {
+        providerId: provider.id,
+        providerType: provider.type,
+        model: input.model,
+        action: input.action,
+        processorId: processor.id,
+      };
+      const processedInput =
+        (await processor.processInput?.(input, context)) ?? input;
+      const output = await provider.invoke(processedInput);
+
+      return (
+        (await processor.processOutput?.(output, processedInput, context)) ??
+        output
+      );
     },
   };
 };

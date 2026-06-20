@@ -1,3 +1,4 @@
+import type { TestImageProviderConfig } from "../provider-config.ts";
 import type { ImageMimeType, ImageProvider } from "../types.ts";
 
 const pngBytes = new Uint8Array([
@@ -24,10 +25,7 @@ const webpBytes = new Uint8Array([
   47, 0, 0, 0, 16, 7, 16, 17, 17, 136, 136, 254, 7, 0,
 ]);
 
-export const testImageProvider: ImageProvider = {
-  id: "test-image-provider",
-  actionSupports: ["generate", "edit", "variation"],
-  models: [
+const defaultTestModels = [
     "test-image",
     "gpt-image-1",
     "gpt-image-2",
@@ -35,7 +33,16 @@ export const testImageProvider: ImageProvider = {
     "dall-e-3",
     "gpt-4.1-mini",
     "gpt-5.5",
-  ],
+] as const;
+
+export const createTestImageProvider = (
+  config: TestImageProviderConfig = { type: "test" },
+): ImageProvider => ({
+  id: config.id ?? "test-image-provider",
+  type: "test",
+  actionSupports: ["generate", "edit", "variation"],
+  models: config.models ?? defaultTestModels,
+  processorId: config.processor,
   invoke: async (input) => {
     const count = Math.max(1, Math.min(input.n ?? 1, 10));
     const mimeType = imageFormatToMimeType(input.format);
@@ -56,14 +63,16 @@ export const testImageProvider: ImageProvider = {
         totalTokens: (input.prompt?.length ?? 0) + count,
       },
       raw: {
-        provider: "test-image-provider",
+        provider: config.id ?? "test-image-provider",
         action: input.action,
         imageCount: input.images?.length ?? 0,
         hasMask: Boolean(input.mask),
       },
     };
   },
-};
+});
+
+export const testImageProvider: ImageProvider = createTestImageProvider();
 
 const getFixtureBytes = (mimeType: ImageMimeType): Uint8Array => {
   if (mimeType === "image/jpeg") {

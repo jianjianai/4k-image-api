@@ -4,7 +4,12 @@ import {
   ImageProviderNotFoundError,
   imageProviderManager,
 } from "../../server/utils/image/provider-manager.ts";
-import type { ImageInput, ImageProvider } from "../../server/utils/image.ts";
+import {
+  imageProcessorManager,
+  type ImageInput,
+  type ImageProcessor,
+  type ImageProvider,
+} from "../../server/utils/image.ts";
 
 describe("image provider manager", () => {
   it("routes providers by model and action", async () => {
@@ -18,11 +23,15 @@ describe("image provider manager", () => {
     try {
       await expect(imageProviderManager.invoke(input("routing-test-model", "generate")))
         .resolves.toMatchObject({
-          raw: "routing-test-generate",
+          raw: {
+            id: "routing-test-generate",
+          },
         });
       await expect(imageProviderManager.invoke(input("routing-test-model", "edit")))
         .resolves.toMatchObject({
-          raw: "routing-test-edit",
+          raw: {
+            id: "routing-test-edit",
+          },
         });
     } finally {
       imageProviderManager.remove("routing-test-generate");
@@ -44,19 +53,80 @@ describe("image provider manager", () => {
       }),
     ).rejects.toBeInstanceOf(ImageModelRequiredError);
   });
+
+  it("runs the configured processor around provider invocation", async () => {
+    imageProcessorManager.add(processor("routing-test-processor"));
+    imageProviderManager.add(
+      provider("routing-test-processed", "routing-test-model", ["generate"], {
+        processorId: "routing-test-processor",
+      }),
+    );
+
+    try {
+      const output = await imageProviderManager.invoke({
+        ...input("routing-test-model", "generate"),
+        prompt: "cat",
+      });
+
+      expect(output.raw).toEqual({
+        id: "routing-test-processed",
+        prompt: "[in] cat",
+      });
+      expect(output.images).toEqual([
+        {
+          bytes: new Uint8Array([1]),
+          mimeType: "image/png",
+          revisedPrompt: "[out] [in] cat",
+        },
+      ]);
+    } finally {
+      imageProviderManager.remove("routing-test-processed");
+      imageProcessorManager.remove("routing-test-processor");
+    }
+  });
 });
 
 const provider = (
   id: string,
   model: string,
   actionSupports: ImageProvider["actionSupports"],
+  options: Partial<Pick<ImageProvider, "processorId">> = {},
 ): ImageProvider => ({
   id,
+  type: "test",
   models: [model],
   actionSupports,
-  invoke: async () => ({
-    images: [],
-    raw: id,
+  processorId: options.processorId,
+  invoke: async (input) => ({
+    images: [
+      {
+        bytes: new Uint8Array([1]),
+        mimeType: "image/png",
+        revisedPrompt: input.prompt,
+      },
+    ],
+    raw: {
+      id,
+      prompt: input.prompt,
+    },
+  }),
+});
+
+const processor = (id: string): ImageProcessor => ({
+  id,
+  type: "testprocessor",
+  processInput: (input) => ({
+    ...input,
+    prompt: input.prompt ? `[in] ${input.prompt}` : input.prompt,
+  }),
+  processOutput: (output) => ({
+    ...output,
+    images: output.images.map((image) => ({
+      ...image,
+      revisedPrompt: image.revisedPrompt
+        ? `[out] ${image.revisedPrompt}`
+        : image.revisedPrompt,
+    })),
   }),
 });
 

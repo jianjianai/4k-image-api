@@ -18,8 +18,10 @@ export const createOpenAIImageVariationProvider = (
   client: OpenAIImageClient = createOpenAIClient(config),
 ): ImageProvider => ({
   id: config.id,
+  type: config.type,
   models: config.models,
   actionSupports: ["variation"],
+  processorId: config.processor,
   invoke: async (input) => {
     const response = await client.images.createVariation(
       await toImageVariationParams(input),

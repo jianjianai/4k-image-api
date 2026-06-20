@@ -1,10 +1,26 @@
 import { useRuntimeConfig } from "nitro/runtime-config";
 
+export type ImageRuntimeConfig = {
+  providers: ImageProviderConfig[];
+  processors: ImageProcessorConfig[];
+};
+
 export type ImageProviderConfig =
   | OpenAIImagesProviderConfig
   | OpenAIVariationProviderConfig
   | OpenAIResponsesProviderConfig
   | TestImageProviderConfig;
+
+export type ImageProcessorConfig = TestImageProcessorConfig;
+
+export type TestImageProcessorConfig = {
+  id: string;
+  type: "testprocessor";
+  enabled?: boolean;
+  promptPrefix?: string;
+  revisedPromptPrefix?: string;
+  outputMimeType?: "image/png" | "image/jpeg" | "image/webp";
+};
 
 export type OpenAIProviderConfig =
   | OpenAIImagesProviderConfig
@@ -14,6 +30,7 @@ export type OpenAIProviderConfig =
 export type OpenAIProviderConfigBase = {
   id: string;
   enabled?: boolean;
+  processor?: string;
   apiKey: string;
   baseURL?: string;
   organization?: string;
@@ -39,23 +56,63 @@ export type TestImageProviderConfig = {
   id?: string;
   type: "test";
   enabled?: boolean;
+  processor?: string;
   models?: string[];
 };
 
-export const readImageProviderConfigs = (): ImageProviderConfig[] => {
+export const readImageRuntimeConfig = (): ImageRuntimeConfig => {
   const raw = useRuntimeConfig().imageProviders;
 
   if (typeof raw !== "string" || raw.trim().length === 0) {
-    return [];
+    return {
+      providers: [],
+      processors: [],
+    };
   }
 
   const parsed = JSON.parse(raw) as unknown;
 
-  if (!Array.isArray(parsed)) {
-    throw new Error("Runtime config imageProviders must be a JSON array.");
+  return parseImageRuntimeConfig(parsed);
+};
+
+export const parseImageRuntimeConfig = (parsed: unknown): ImageRuntimeConfig => {
+  if (Array.isArray(parsed)) {
+    return {
+      providers: parsed.map(parseImageProviderConfig),
+      processors: [],
+    };
   }
 
-  return parsed.map(parseImageProviderConfig);
+  if (!isObject(parsed)) {
+    throw new Error(
+      "Runtime config imageProviders must be a JSON array or object.",
+    );
+  }
+
+  if (!Array.isArray(parsed.providers)) {
+    throw new Error("Runtime config imageProviders.providers must be a JSON array.");
+  }
+
+  return {
+    providers: parsed.providers.map(parseImageProviderConfig),
+    processors:
+      parsed.processors === undefined
+        ? []
+        : parseImageProcessorConfigList(parsed.processors),
+  };
+};
+
+export const readImageProviderConfigs = (): ImageProviderConfig[] =>
+  readImageRuntimeConfig().providers;
+
+const parseImageProcessorConfigList = (
+  value: unknown,
+): ImageProcessorConfig[] => {
+  if (!Array.isArray(value)) {
+    throw new Error("Runtime config imageProviders.processors must be a JSON array.");
+  }
+
+  return value.map(parseImageProcessorConfig);
 };
 
 export const parseImageProviderConfig = (
@@ -82,6 +139,20 @@ export const parseImageProviderConfig = (
   );
 };
 
+export const parseImageProcessorConfig = (
+  value: unknown,
+): ImageProcessorConfig => {
+  if (!isObject(value)) {
+    throw new Error("Image processor config must be an object.");
+  }
+
+  if (value.type === "testprocessor") {
+    return parseTestImageProcessorConfig(value);
+  }
+
+  throw new Error("Image processor config type must be 'testprocessor'.");
+};
+
 const parseOpenAIProviderConfig = (
   value: Record<string, unknown>,
   type: OpenAIProviderConfig["type"],
@@ -100,6 +171,7 @@ const parseOpenAIProviderConfig = (
     apiKey,
     models,
     enabled: getOptionalBoolean(value.enabled, "enabled"),
+    processor: getOptionalString(value.processor, "processor"),
     baseURL: getOptionalString(value.baseURL, "baseURL"),
     organization: getOptionalString(value.organization, "organization"),
     project: getOptionalString(value.project, "project"),
@@ -114,8 +186,23 @@ const parseTestImageProviderConfig = (
   id: getOptionalString(value.id, "id"),
   type: "test",
   enabled: getOptionalBoolean(value.enabled, "enabled"),
+  processor: getOptionalString(value.processor, "processor"),
   models:
     value.models === undefined ? undefined : getStringArray(value.models, "models"),
+});
+
+const parseTestImageProcessorConfig = (
+  value: Record<string, unknown>,
+): TestImageProcessorConfig => ({
+  id: getRequiredString(value.id, "id"),
+  type: "testprocessor",
+  enabled: getOptionalBoolean(value.enabled, "enabled"),
+  promptPrefix: getOptionalString(value.promptPrefix, "promptPrefix"),
+  revisedPromptPrefix: getOptionalString(
+    value.revisedPromptPrefix,
+    "revisedPromptPrefix",
+  ),
+  outputMimeType: getOptionalImageMimeType(value.outputMimeType, "outputMimeType"),
 });
 
 const getRequiredString = (value: unknown, name: string): string => {
@@ -180,6 +267,23 @@ const getStringArray = (value: unknown, name: string): string[] => {
   }
 
   throw new Error(`Image provider config '${name}' must be a string array.`);
+};
+
+const getOptionalImageMimeType = (
+  value: unknown,
+  name: string,
+): "image/png" | "image/jpeg" | "image/webp" | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === "image/png" || value === "image/jpeg" || value === "image/webp") {
+    return value;
+  }
+
+  throw new Error(
+    `Image processor config '${name}' must be 'image/png', 'image/jpeg', or 'image/webp'.`,
+  );
 };
 
 const isObject = (value: unknown): value is Record<string, unknown> =>

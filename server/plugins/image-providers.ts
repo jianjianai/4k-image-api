@@ -1,39 +1,50 @@
 import { definePlugin } from "nitro";
-import { imageProviderManager } from "../utils/image.ts";
-import { readImageProviderConfigs } from "../utils/image/provider-config.ts";
+import { imageProcessorManager, imageProviderManager } from "../utils/image.ts";
+import { readImageRuntimeConfig } from "../utils/image/provider-config.ts";
 import { createOpenAIImageGenerationProvider } from "../utils/image/providers/openai-generations.ts";
 import { createOpenAIImageVariationProvider } from "../utils/image/providers/openai-variation.ts";
 import { createOpenAIResponsesImageProvider } from "../utils/image/providers/openai-responses.ts";
-import { testImageProvider } from "../utils/image/providers/test.ts";
+import { createTestImageProvider, testImageProvider } from "../utils/image/providers/test.ts";
+import { createTestImageProcessor } from "../utils/image/processors/testprocessor.ts";
 
 export default definePlugin(() => {
-  const configs = readImageProviderConfigs();
+  const config = readImageRuntimeConfig();
 
-  if (configs.length === 0) {
+  for (const processorConfig of config.processors) {
+    if (processorConfig.enabled === false) {
+      continue;
+    }
+
+    if (processorConfig.type === "testprocessor") {
+      imageProcessorManager.add(createTestImageProcessor(processorConfig));
+    }
+  }
+
+  if (config.providers.length === 0) {
     imageProviderManager.add(testImageProvider);
     return;
   }
 
-  for (const config of configs) {
-    if (config.enabled === false) {
+  for (const providerConfig of config.providers) {
+    if (providerConfig.enabled === false) {
       continue;
     }
 
-    if (config.type === "openai-images") {
-      imageProviderManager.add(createOpenAIImageGenerationProvider(config));
+    if (providerConfig.type === "openai-images") {
+      imageProviderManager.add(createOpenAIImageGenerationProvider(providerConfig));
       continue;
     }
 
-    if (config.type === "openai-variation") {
-      imageProviderManager.add(createOpenAIImageVariationProvider(config));
+    if (providerConfig.type === "openai-variation") {
+      imageProviderManager.add(createOpenAIImageVariationProvider(providerConfig));
       continue;
     }
 
-    if (config.type === "openai-responses") {
-      imageProviderManager.add(createOpenAIResponsesImageProvider(config));
+    if (providerConfig.type === "openai-responses") {
+      imageProviderManager.add(createOpenAIResponsesImageProvider(providerConfig));
       continue;
     }
 
-    imageProviderManager.add(testImageProvider);
+    imageProviderManager.add(createTestImageProvider(providerConfig));
   }
 });

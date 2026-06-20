@@ -28,8 +28,10 @@ export const createOpenAIImageGenerationProvider = (
   client: OpenAIImageClient = createOpenAIClient(config),
 ): ImageProvider => ({
   id: config.id,
+  type: config.type,
   models: config.models,
   actionSupports: ["generate", "edit"],
+  processorId: config.processor,
   invoke: async (input) => {
     if (input.action === "edit") {
       const response = await client.images.edit(await toImageEditParams(input));

@@ -4,6 +4,14 @@ export type ImageResponseFormat = "b64_json" | "url";
 
 export type ImageAction = "generate" | "edit" | "variation";
 
+export type ImageProviderType =
+  | "test"
+  | "openai-images"
+  | "openai-variation"
+  | "openai-responses";
+
+export type ImageProcessorType = "testprocessor";
+
 export type ImageAsset = {
   data: Uint8Array;
   mimeType: ImageMimeType;
@@ -47,9 +55,35 @@ export type ImageOutput = {
 
 export type ImageProvider = {
   id: string;
+  type: ImageProviderType;
   models: readonly string[];
   actionSupports: readonly ImageAction[];
+  processorId?: string;
   invoke: (input: ImageInput) => Promise<ImageOutput>;
 };
 
 export type ImageProviders = readonly ImageProvider[];
+
+export type ImageProcessorContext = {
+  providerId: string;
+  providerType: ImageProviderType;
+  model: string;
+  action: ImageAction;
+  processorId: string;
+};
+
+export type ImageProcessor = {
+  id: string;
+  type: ImageProcessorType;
+  processInput?: (
+    input: ImageInput,
+    context: ImageProcessorContext,
+  ) => ImageInput | Promise<ImageInput>;
+  processOutput?: (
+    output: ImageOutput,
+    input: ImageInput,
+    context: ImageProcessorContext,
+  ) => ImageOutput | Promise<ImageOutput>;
+};
+
+export type ImageProcessors = readonly ImageProcessor[];

@@ -66,9 +66,9 @@ pnpm build
 pnpm preview
 ```
 
-## Provider 配置
+## 图片后端配置
 
-provider 配置通过 Nitro `runtimeConfig.imageProviders` 读取，类型是 JSON 字符串。当前 `nitro.config.ts` 的默认值是：
+图片后端配置通过 Nitro `runtimeConfig.imageProviders` 读取，类型是 JSON 字符串。当前 `nitro.config.ts` 的默认值是：
 
 ```ts
 runtimeConfig: {
@@ -78,16 +78,27 @@ runtimeConfig: {
 
 如果配置为空数组，服务会注册内置 `test` provider，用于本地开发和接口联调。
 
+推荐使用对象格式：
+
+```json
+{
+  "processors": [],
+  "providers": []
+}
+```
+
+旧的 provider 数组格式仍然兼容。
+
 在运行时可以用环境变量覆盖：
 
 ```bash
-NITRO_IMAGE_PROVIDERS='[...]' pnpm dev
+NITRO_IMAGE_PROVIDERS='{"processors":[],"providers":[]}' pnpm dev
 ```
 
 PowerShell 示例：
 
 ```powershell
-$env:NITRO_IMAGE_PROVIDERS='[...]'
+$env:NITRO_IMAGE_PROVIDERS='{"processors":[],"providers":[]}'
 pnpm dev
 ```
 
@@ -110,6 +121,44 @@ actionSupports: readonly ImageAction[];
 1. `model` 在 provider 的 `models` 列表中。
 2. `action` 在 provider 的 `actionSupports` 列表中。
 3. 多个 provider 同时匹配时，使用配置顺序中最先注册的 provider。
+4. 如果 provider 配置了 `processor`，会在调用 provider 前后执行对应 processor。
+
+## Processor 类型
+
+processor 用于在 provider 调用前后修改 `ImageInput` 和 `ImageOutput`。每个 provider 最多引用一个 processor：
+
+```json
+{
+  "type": "test",
+  "models": ["test-image"],
+  "processor": "demo-processor"
+}
+```
+
+### `testprocessor`
+
+内置测试 processor，用于验证 processor 链路。它可以给 prompt 和 revised prompt 加前缀，也可以改输出图片的 MIME 类型。
+
+```json
+{
+  "id": "demo-processor",
+  "type": "testprocessor",
+  "promptPrefix": "[input] ",
+  "revisedPromptPrefix": "[output] ",
+  "outputMimeType": "image/webp"
+}
+```
+
+字段说明：
+
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `id` | 是 | processor 唯一标识，provider 用 `processor` 字段引用 |
+| `type` | 是 | 当前支持 `testprocessor` |
+| `enabled` | 否 | 设置为 `false` 时跳过该 processor |
+| `promptPrefix` | 否 | 调用 provider 前给 `ImageInput.prompt` 加前缀 |
+| `revisedPromptPrefix` | 否 | provider 返回后给 `ImageOutput.images[].revisedPrompt` 加前缀 |
+| `outputMimeType` | 否 | 将输出图片 MIME 类型改为 `image/png`、`image/jpeg` 或 `image/webp` |
 
 ## Provider 类型
 
@@ -118,12 +167,14 @@ actionSupports: readonly ImageAction[];
 内置测试 provider，不需要 API Key。它会返回很小的测试图片字节，用于开发环境验证接口、响应格式和前端流程。
 
 ```json
-[
-  {
-    "type": "test",
-    "models": ["test-image", "gpt-image-1"]
-  }
-]
+{
+  "providers": [
+    {
+      "type": "test",
+      "models": ["test-image", "gpt-image-1"]
+    }
+  ]
+}
 ```
 
 ### `openai-images`
@@ -134,14 +185,16 @@ actionSupports: readonly ImageAction[];
 - `edit` -> `client.images.edit(...)`
 
 ```json
-[
-  {
-    "id": "openai-images",
-    "type": "openai-images",
-    "apiKey": "sk-...",
-    "models": ["gpt-image-1", "gpt-image-2"]
-  }
-]
+{
+  "providers": [
+    {
+      "id": "openai-images",
+      "type": "openai-images",
+      "apiKey": "sk-...",
+      "models": ["gpt-image-1", "gpt-image-2"]
+    }
+  ]
+}
 ```
 
 ### `openai-variation`
@@ -153,14 +206,16 @@ actionSupports: readonly ImageAction[];
 该能力通常用于 `dall-e-2` 这类支持 variation 的模型。
 
 ```json
-[
-  {
-    "id": "openai-variation",
-    "type": "openai-variation",
-    "apiKey": "sk-...",
-    "models": ["dall-e-2"]
-  }
-]
+{
+  "providers": [
+    {
+      "id": "openai-variation",
+      "type": "openai-variation",
+      "apiKey": "sk-...",
+      "models": ["dall-e-2"]
+    }
+  ]
+}
 ```
 
 ### `openai-responses`
@@ -171,14 +226,16 @@ actionSupports: readonly ImageAction[];
 - `edit` -> `client.responses.create(...)`
 
 ```json
-[
-  {
-    "id": "openai-responses",
-    "type": "openai-responses",
-    "apiKey": "sk-...",
-    "models": ["gpt-image-1", "gpt-image-2"]
-  }
-]
+{
+  "providers": [
+    {
+      "id": "openai-responses",
+      "type": "openai-responses",
+      "apiKey": "sk-...",
+      "models": ["gpt-image-1", "gpt-image-2"]
+    }
+  ]
+}
 ```
 
 ### OpenAI provider 字段
@@ -190,6 +247,7 @@ actionSupports: readonly ImageAction[];
 | `apiKey` | 是 | OpenAI API Key |
 | `models` | 是 | provider 支持的模型列表 |
 | `enabled` | 否 | 设置为 `false` 时跳过该 provider |
+| `processor` | 否 | 引用一个已配置的 processor |
 | `baseURL` | 否 | 自定义 OpenAI 兼容 API 地址 |
 | `organization` | 否 | OpenAI organization |
 | `project` | 否 | OpenAI project |
@@ -199,28 +257,39 @@ actionSupports: readonly ImageAction[];
 ## 完整配置示例
 
 ```json
-[
-  {
-    "id": "openai-images-main",
-    "type": "openai-images",
-    "apiKey": "sk-...",
-    "models": ["gpt-image-1", "gpt-image-2"],
-    "timeoutMs": 120000,
-    "maxRetries": 1
-  },
-  {
-    "id": "openai-variation-main",
-    "type": "openai-variation",
-    "apiKey": "sk-...",
-    "models": ["dall-e-2"]
-  },
-  {
-    "id": "openai-responses-main",
-    "type": "openai-responses",
-    "apiKey": "sk-...",
-    "models": ["gpt-image-1"]
-  }
-]
+{
+  "processors": [
+    {
+      "id": "demo-processor",
+      "type": "testprocessor",
+      "promptPrefix": "[input] ",
+      "revisedPromptPrefix": "[output] "
+    }
+  ],
+  "providers": [
+    {
+      "id": "openai-images-main",
+      "type": "openai-images",
+      "apiKey": "sk-...",
+      "models": ["gpt-image-1", "gpt-image-2"],
+      "processor": "demo-processor",
+      "timeoutMs": 120000,
+      "maxRetries": 1
+    },
+    {
+      "id": "openai-variation-main",
+      "type": "openai-variation",
+      "apiKey": "sk-...",
+      "models": ["dall-e-2"]
+    },
+    {
+      "id": "openai-responses-main",
+      "type": "openai-responses",
+      "apiKey": "sk-...",
+      "models": ["gpt-image-1"]
+    }
+  ]
+}
 ```
 
 ## 请求示例
