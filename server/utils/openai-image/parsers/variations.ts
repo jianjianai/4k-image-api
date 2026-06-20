@@ -20,9 +20,4 @@ export const parseImageVariationRequest = async (
   options: {
     user: request.user,
   },
-  source: {
-    protocol: "openai",
-    endpoint: "images.variations",
-    raw: request,
-  },
 });

@@ -27,9 +27,4 @@ export const parseImageEditRequest = async (
     outputCompression: request.output_compression,
     user: request.user,
   },
-  source: {
-    protocol: "openai",
-    endpoint: "images.edits",
-    raw: request,
-  },
 });

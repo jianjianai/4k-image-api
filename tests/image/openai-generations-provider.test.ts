@@ -29,6 +29,8 @@ describe("createOpenAIImageGenerationProvider", () => {
       responses: { create: vi.fn() },
     } as never);
 
+    expect(provider.actionSupports).toEqual(["generate", "edit"]);
+
     const output = await provider.invoke({
       ...baseInput(),
       responseFormat: "url",
@@ -159,11 +161,6 @@ const baseInput = (): ImageInput => ({
   action: "generate",
   prompt: "draw a cat",
   model: "gpt-image-1",
-  source: {
-    protocol: "openai",
-    endpoint: "images.generations",
-    raw: {},
-  },
 });
 
 const imageAsset = (filename: string) => ({

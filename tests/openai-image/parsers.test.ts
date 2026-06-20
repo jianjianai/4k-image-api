@@ -23,10 +23,6 @@ describe("OpenAI image parsers", () => {
       n: 2,
       size: "1024x1024",
       responseFormat: "url",
-      source: {
-        protocol: "openai",
-        endpoint: "images.generations",
-      },
     });
   });
 
@@ -42,7 +38,6 @@ describe("OpenAI image parsers", () => {
     expect(input.images).toHaveLength(2);
     expect(input.mask).toBeDefined();
     expect(input.options?.inputFidelity).toBe("high");
-    expect(input.source.endpoint).toBe("images.edits");
   });
 
   it("parses image variation requests directly", async () => {
@@ -56,7 +51,6 @@ describe("OpenAI image parsers", () => {
     expect(input.model).toBe("dall-e-2");
     expect(input.images).toHaveLength(1);
     expect(input.responseFormat).toBe("b64_json");
-    expect(input.source.endpoint).toBe("images.variations");
   });
 
   it("parses responses image requests directly", async () => {
@@ -83,10 +77,6 @@ describe("OpenAI image parsers", () => {
       size: "1024x1024",
       format: "webp",
       stream: true,
-      source: {
-        protocol: "openai",
-        endpoint: "responses",
-      },
     });
   });
 });

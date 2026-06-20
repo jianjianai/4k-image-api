@@ -30,6 +30,7 @@ export const createOpenAIImageGenerationProvider = (
 ): ImageProvider => ({
   id: config.id,
   models: config.models,
+  actionSupports: ["generate", "edit"],
   invoke: async (input) => {
     const response =
       input.action === "edit"

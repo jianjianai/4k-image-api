@@ -25,9 +25,4 @@ export const parseImageGenerationRequest = async (
     partialImages: request.partial_images,
     user: request.user,
   },
-  source: {
-    protocol: "openai",
-    endpoint: "images.generations",
-    raw: request,
-  },
 });

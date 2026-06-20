@@ -2,6 +2,8 @@ export type ImageMimeType = "image/png" | "image/jpeg" | "image/webp";
 
 export type ImageResponseFormat = "b64_json" | "url";
 
+export type ImageAction = "generate" | "edit";
+
 export type ImageAsset = {
   data: Uint8Array;
   mimeType: ImageMimeType;
@@ -9,7 +11,7 @@ export type ImageAsset = {
 };
 
 export type ImageInput = {
-  action: "generate" | "edit";
+  action: ImageAction;
 
   prompt?: string;
   model?: string;
@@ -25,16 +27,6 @@ export type ImageInput = {
   responseFormat?: ImageResponseFormat;
   stream?: boolean;
   options?: Record<string, unknown>;
-
-  source: {
-    protocol: "openai";
-    endpoint:
-      | "images.generations"
-      | "images.variations"
-      | "images.edits"
-      | "responses";
-    raw: unknown;
-  };
 };
 
 export type ImageOutput = {
@@ -56,6 +48,7 @@ export type ImageOutput = {
 export type ImageProvider = {
   id: string;
   models: readonly string[];
+  actionSupports: readonly ImageAction[];
   invoke: (input: ImageInput) => Promise<ImageOutput>;
 };
 

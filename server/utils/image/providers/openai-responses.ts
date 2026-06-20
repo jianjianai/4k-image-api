@@ -26,6 +26,7 @@ export const createOpenAIResponsesImageProvider = (
 ): ImageProvider => ({
   id: config.id,
   models: config.models,
+  actionSupports: ["generate", "edit"],
   invoke: async (input) => {
     const response = await client.responses.create(toResponseCreateParams(input));
 

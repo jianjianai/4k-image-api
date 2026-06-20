@@ -62,8 +62,10 @@ const createImageProviderManager = (
         throw new ImageModelRequiredError();
       }
 
-      const provider = providers.find((provider) =>
-        provider.models.includes(input.model!),
+      const provider = providers.find(
+        (provider) =>
+          provider.models.includes(input.model!) &&
+          provider.actionSupports.includes(input.action),
       );
 
       if (!provider) {

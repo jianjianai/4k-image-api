@@ -6,11 +6,6 @@ const input: ImageInput = {
   action: "generate",
   prompt: "original prompt",
   model: "gpt-image-1",
-  source: {
-    protocol: "openai",
-    endpoint: "responses",
-    raw: {},
-  },
 };
 
 describe("toOpenAIResponse", () => {

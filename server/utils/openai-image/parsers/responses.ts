@@ -27,11 +27,6 @@ export const parseResponsesImageRequest = async (
       tool,
       user: request.user,
     },
-    source: {
-      protocol: "openai",
-      endpoint: "responses",
-      raw: request,
-    },
   };
 };
 

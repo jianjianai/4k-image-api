@@ -28,6 +28,8 @@ describe("createOpenAIResponsesImageProvider", () => {
       responses: { create },
     } as never);
 
+    expect(provider.actionSupports).toEqual(["generate", "edit"]);
+
     const input = {
       ...baseInput(),
       size: "1024x1536",
@@ -100,11 +102,6 @@ describe("createOpenAIResponsesImageProvider", () => {
       options: {
         inputFidelity: "low",
       },
-      source: {
-        protocol: "openai",
-        endpoint: "images.edits",
-        raw: {},
-      },
     });
 
     expect(create).toHaveBeenCalledWith({
@@ -160,11 +157,6 @@ const baseInput = (): ImageInput => ({
   action: "generate",
   prompt: "draw a cat",
   model: "gpt-image-1",
-  source: {
-    protocol: "openai",
-    endpoint: "responses",
-    raw: {},
-  },
 });
 
 const imageAsset = () => ({
