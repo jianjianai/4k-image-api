@@ -44,11 +44,18 @@ export type ModelslabRealEsrganSizeAdapterConfig = {
   maxHeight: number;
   maxPixels?: number;
   apiKey: string;
-  modelId?: "RealESRGAN_x4plus" | "RealESRGAN_x4plus_anime_6B" | "RealESRGAN_x2plus";
+  modelId?: ModelslabRealEsrganModelId;
   scale?: number;
   faceEnhance?: boolean;
   baseURL?: string;
 };
+
+export type ModelslabRealEsrganModelId =
+  | "RealESRGAN_x4plus"
+  | "RealESRGAN_x4plus_anime_6B"
+  | "RealESRGAN_x2plus"
+  | "realesr-general-x4v3"
+  | "ultra_resolution";
 
 export type OpenAIProviderConfig =
   | OpenAIImagesProviderConfig
@@ -392,11 +399,7 @@ const getOptionalSharpFit = (
 const getOptionalModelslabModelId = (
   value: unknown,
   name: string,
-):
-  | "RealESRGAN_x4plus"
-  | "RealESRGAN_x4plus_anime_6B"
-  | "RealESRGAN_x2plus"
-  | undefined => {
+): ModelslabRealEsrganModelId | undefined => {
   if (value === undefined) {
     return undefined;
   }
@@ -404,7 +407,9 @@ const getOptionalModelslabModelId = (
   if (
     value === "RealESRGAN_x4plus" ||
     value === "RealESRGAN_x4plus_anime_6B" ||
-    value === "RealESRGAN_x2plus"
+    value === "RealESRGAN_x2plus" ||
+    value === "realesr-general-x4v3" ||
+    value === "ultra_resolution"
   ) {
     return value;
   }

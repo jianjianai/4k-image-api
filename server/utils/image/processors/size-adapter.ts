@@ -12,6 +12,8 @@ export type SizeAdapterState = {
   originalSize: string;
   adaptedSize: string;
   target: ImageSize;
+  scale?: number;
+  modelId?: string;
 };
 
 export const adaptInputSize = (
@@ -26,19 +28,24 @@ export const adaptInputSize = (
 
   const adaptedSize = fitWithin(requestedSize, maxSize);
 
-  return {
-    ...input,
-    size: formatImageSize(adaptedSize),
-    options: {
-      ...input.options,
-      [sizeAdapterOptionKey]: {
-        originalSize: input.size!,
-        adaptedSize: formatImageSize(adaptedSize),
-        target: requestedSize,
-      } satisfies SizeAdapterState,
-    },
-  };
+  return withSizeAdapterState(input, {
+    originalSize: input.size!,
+    adaptedSize: formatImageSize(adaptedSize),
+    target: requestedSize,
+  });
 };
+
+export const withSizeAdapterState = (
+  input: ImageInput,
+  state: SizeAdapterState,
+): ImageInput => ({
+  ...input,
+  size: state.adaptedSize,
+  options: {
+    ...input.options,
+    [sizeAdapterOptionKey]: state,
+  },
+});
 
 export const getSizeAdapterState = (
   input: ImageInput,
@@ -58,7 +65,7 @@ export const getSizeAdapterState = (
     typeof target.width === "number" &&
     typeof target.height === "number"
   ) {
-    return {
+    const state: SizeAdapterState = {
       originalSize: value.originalSize,
       adaptedSize: value.adaptedSize,
       target: {
@@ -66,6 +73,16 @@ export const getSizeAdapterState = (
         height: target.height,
       },
     };
+
+    if (typeof value.scale === "number" && Number.isFinite(value.scale)) {
+      state.scale = value.scale;
+    }
+
+    if (typeof value.modelId === "string") {
+      state.modelId = value.modelId;
+    }
+
+    return state;
   }
 
   return undefined;

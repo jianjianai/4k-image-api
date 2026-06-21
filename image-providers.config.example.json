@@ -16,14 +16,12 @@
       "fit": "fill"
     },
     {
-      "id": "resize-modelslab-4x",
+      "id": "resize-modelslab-auto",
       "type": "size-adapter:modelslab:real-esrgan",
       "maxWidth": 1920,
       "maxHeight": 1920,
       "maxPixels": 2073600,
       "apiKey": "modelslab-your-api-key",
-      "modelId": "RealESRGAN_x4plus",
-      "scale": 4,
       "faceEnhance": false
     }
   ],

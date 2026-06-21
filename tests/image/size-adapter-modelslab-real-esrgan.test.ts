@@ -71,9 +71,96 @@ describe("createModelslabRealEsrganSizeAdapter", () => {
       },
     ]);
   });
+
+  it("automatically chooses the cheapest exact scale", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          output: ["https://example.test/output.png"],
+        }),
+      )
+      .mockResolvedValueOnce(new Response(new Uint8Array([9, 8, 7])));
+    vi.stubGlobal("fetch", fetch);
+    const processor = createProcessor({
+      maxWidth: 1920,
+      maxHeight: 1920,
+      maxPixels: 2073600,
+      modelId: undefined,
+      scale: undefined,
+    });
+    const input = await processor.processInput?.(imageInput("2480x3328"), context());
+
+    await processor.processOutput?.(imageOutput(), input!, context());
+
+    expect(input?.size).toBe("1240x1664");
+    expect(fetch).toHaveBeenNthCalledWith(
+      1,
+      "https://example.test/super_resolution",
+      expect.objectContaining({
+        body: JSON.stringify({
+          key: "key-test",
+          init_image: "data:image/png;base64,AQID",
+          model_id: "RealESRGAN_x2plus",
+          scale: 2,
+          face_enhance: true,
+        }),
+      }),
+    );
+  });
+
+  it("uses 4x only when cheaper scales cannot fit within max size", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          output: ["https://example.test/output.png"],
+        }),
+      )
+      .mockResolvedValueOnce(new Response(new Uint8Array([9, 8, 7])));
+    vi.stubGlobal("fetch", fetch);
+    const processor = createProcessor({
+      maxWidth: 600,
+      maxHeight: 900,
+      maxPixels: undefined,
+      modelId: undefined,
+      scale: undefined,
+    });
+    const input = await processor.processInput?.(imageInput("2400x3200"), context());
+
+    await processor.processOutput?.(imageOutput(), input!, context());
+
+    expect(input?.size).toBe("600x800");
+    expect(fetch).toHaveBeenNthCalledWith(
+      1,
+      "https://example.test/super_resolution",
+      expect.objectContaining({
+        body: JSON.stringify({
+          key: "key-test",
+          init_image: "data:image/png;base64,AQID",
+          model_id: "realesr-general-x4v3",
+          scale: 4,
+          face_enhance: true,
+        }),
+      }),
+    );
+  });
+
+  it("rejects sizes that cannot be produced exactly without a final resize", async () => {
+    const processor = createProcessor({
+      modelId: undefined,
+      scale: undefined,
+    });
+
+    expect(() => processor.processInput?.(imageInput("2049x1024"), context())).toThrow(
+      "without a final resize",
+    );
+  });
 });
 
-const createProcessor = () =>
+const createProcessor = (
+  overrides: Partial<Parameters<typeof createModelslabRealEsrganSizeAdapter>[0]> = {},
+) =>
   createModelslabRealEsrganSizeAdapter({
     id: "resize-modelslab",
     type: "size-adapter:modelslab:real-esrgan",
@@ -85,6 +172,7 @@ const createProcessor = () =>
     scale: 2,
     faceEnhance: true,
     baseURL: "https://example.test/super_resolution",
+    ...overrides,
   });
 
 const imageInput = (size: string): ImageInput => ({
