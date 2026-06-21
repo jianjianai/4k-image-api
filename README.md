@@ -19,6 +19,7 @@
 | `POST /v1/images/edits` | 图像编辑 | `edit` |
 | `POST /v1/images/variations` | 基于图片生成变体 | `variation` |
 | `POST /v1/responses` | Responses API 的 `image_generation` tool | `generate` / `edit` |
+| `GET /v1/models` | 拉取当前已注册 provider 支持的模型列表 | - |
 
 未知 `/v1/**` 路径和不支持的方法会返回 OpenAI 风格错误 JSON。
 
@@ -473,6 +474,15 @@ curl http://localhost:3000/v1/images/variations \
   -F "model=dall-e-2" \
   -F "image=@input.png" \
   -F "response_format=b64_json"
+```
+
+### Models
+
+`/v1/models` 返回当前已注册 provider 的模型列表，并包含每个模型支持的 action：
+
+```bash
+curl http://localhost:3000/v1/models \
+  -H "authorization: Bearer client-key-1"
 ```
 
 ## 响应格式

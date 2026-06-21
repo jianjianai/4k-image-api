@@ -9,7 +9,9 @@ describe("OpenAI image routes", () => {
   let server: TestViteServer;
 
   beforeAll(async () => {
-    server = await startViteTestServer();
+    server = await startViteTestServer({
+      NITRO_API_KEYS: "",
+    });
   });
 
   afterAll(async () => {
@@ -145,6 +147,36 @@ describe("OpenAI image routes", () => {
       /(^\*$)|POST/,
     );
   });
+
+  it("returns registered image models", async () => {
+    const response = await server.fetch("/v1/models", {
+      method: "GET",
+      headers: {
+        origin: "http://example.test",
+      },
+    });
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "http://example.test",
+    );
+    expect(payload.object).toBe("list");
+    expect(payload.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "test-image",
+          object: "model",
+          actions: ["generate", "edit", "variation"],
+          providerTypes: ["test"],
+        }),
+        expect.objectContaining({
+          id: "gpt-image-1",
+          object: "model",
+        }),
+      ]),
+    );
+  });
 });
 
 describe("OpenAI image route API key protection", () => {
@@ -215,5 +247,21 @@ describe("OpenAI image route API key protection", () => {
 
     expect(response.status).toBe(204);
     expect(await response.text()).toBe("");
+  });
+
+  it("protects model listing with configured API keys", async () => {
+    const response = await server.fetch("/v1/models", {
+      method: "GET",
+      headers: {
+        origin: "http://example.test",
+      },
+    });
+
+    await expectOpenAIError(response, {
+      status: 401,
+      code: "invalid_api_key",
+      param: null,
+      messageIncludes: "API key",
+    });
   });
 });
