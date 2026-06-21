@@ -22,6 +22,11 @@
       "maxHeight": 1920,
       "maxPixels": 2073600,
       "apiKey": "modelslab-your-api-key",
+      "modelByScale": {
+        "2": "RealESRGAN_x2plus",
+        "3": "realesr-general-x4v3",
+        "4": "realesr-general-x4v3"
+      },
       "faceEnhance": false
     }
   ],

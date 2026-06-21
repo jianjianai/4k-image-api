@@ -143,6 +143,12 @@ const getModelIdForScale = (
     return config.modelId;
   }
 
+  const configuredModelId = config.modelByScale?.[String(scale) as "2" | "3" | "4"];
+
+  if (configuredModelId !== undefined) {
+    return configuredModelId;
+  }
+
   return scale <= 2 ? scale2ModelId : generalModelId;
 };
 

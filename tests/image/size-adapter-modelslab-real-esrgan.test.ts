@@ -146,6 +146,45 @@ describe("createModelslabRealEsrganSizeAdapter", () => {
     );
   });
 
+  it("uses modelByScale before the built-in default model mapping", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          output: ["https://example.test/output.png"],
+        }),
+      )
+      .mockResolvedValueOnce(new Response(new Uint8Array([9, 8, 7])));
+    vi.stubGlobal("fetch", fetch);
+    const processor = createProcessor({
+      maxWidth: 600,
+      maxHeight: 900,
+      maxPixels: undefined,
+      modelId: undefined,
+      modelByScale: {
+        "4": "ultra_resolution",
+      },
+      scale: undefined,
+    });
+    const input = await processor.processInput?.(imageInput("2400x3200"), context());
+
+    await processor.processOutput?.(imageOutput(), input!, context());
+
+    expect(fetch).toHaveBeenNthCalledWith(
+      1,
+      "https://example.test/super_resolution",
+      expect.objectContaining({
+        body: JSON.stringify({
+          key: "key-test",
+          init_image: "data:image/png;base64,AQID",
+          model_id: "ultra_resolution",
+          scale: 4,
+          face_enhance: true,
+        }),
+      }),
+    );
+  });
+
   it("rejects sizes that cannot be produced exactly without a final resize", async () => {
     const processor = createProcessor({
       modelId: undefined,

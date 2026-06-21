@@ -162,6 +162,10 @@ describe("parseImageProcessorConfig", () => {
         maxPixels: 2073600,
         apiKey: "key-test",
         modelId: "RealESRGAN_x4plus",
+        modelByScale: {
+          "2": "RealESRGAN_x2plus",
+          "4": "ultra_resolution",
+        },
         scale: 4,
         faceEnhance: false,
         baseURL: "https://example.test/upscale",
@@ -175,6 +179,10 @@ describe("parseImageProcessorConfig", () => {
       maxPixels: 2073600,
       apiKey: "key-test",
       modelId: "RealESRGAN_x4plus",
+      modelByScale: {
+        "2": "RealESRGAN_x2plus",
+        "4": "ultra_resolution",
+      },
       scale: 4,
       faceEnhance: false,
       baseURL: "https://example.test/upscale",

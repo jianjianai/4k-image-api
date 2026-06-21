@@ -45,6 +45,7 @@ export type ModelslabRealEsrganSizeAdapterConfig = {
   maxPixels?: number;
   apiKey: string;
   modelId?: ModelslabRealEsrganModelId;
+  modelByScale?: Partial<Record<"2" | "3" | "4", ModelslabRealEsrganModelId>>;
   scale?: number;
   faceEnhance?: boolean;
   baseURL?: string;
@@ -279,6 +280,7 @@ const parseModelslabRealEsrganSizeAdapterConfig = (
   maxPixels: getOptionalNumber(value.maxPixels, "maxPixels"),
   apiKey: getRequiredString(value.apiKey, "apiKey"),
   modelId: getOptionalModelslabModelId(value.modelId, "modelId"),
+  modelByScale: getOptionalModelslabModelByScale(value.modelByScale, "modelByScale"),
   scale: getOptionalNumber(value.scale, "scale"),
   faceEnhance: getOptionalBoolean(value.faceEnhance, "faceEnhance"),
   baseURL: getOptionalString(value.baseURL, "baseURL"),
@@ -412,6 +414,50 @@ const getOptionalModelslabModelId = (
     value === "ultra_resolution"
   ) {
     return value;
+  }
+
+  throw new Error(
+    `Image processor config '${name}' must be a supported Modelslab RealESRGAN model id.`,
+  );
+};
+
+const getOptionalModelslabModelByScale = (
+  value: unknown,
+  name: string,
+): Partial<Record<"2" | "3" | "4", ModelslabRealEsrganModelId>> | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!isObject(value)) {
+    throw new Error(`Image processor config '${name}' must be an object.`);
+  }
+
+  const modelByScale: Partial<
+    Record<"2" | "3" | "4", ModelslabRealEsrganModelId>
+  > = {};
+
+  for (const key of Object.keys(value)) {
+    if (key !== "2" && key !== "3" && key !== "4") {
+      throw new Error(
+        `Image processor config '${name}' keys must be '2', '3', or '4'.`,
+      );
+    }
+
+    modelByScale[key] = getRequiredModelslabModelId(value[key], `${name}.${key}`);
+  }
+
+  return modelByScale;
+};
+
+const getRequiredModelslabModelId = (
+  value: unknown,
+  name: string,
+): ModelslabRealEsrganModelId => {
+  const modelId = getOptionalModelslabModelId(value, name);
+
+  if (modelId !== undefined) {
+    return modelId;
   }
 
   throw new Error(

@@ -235,6 +235,11 @@ Modelslab 版本不会在云端放大后再用本地 `sharp` 做最终 resize。
   "maxHeight": 1920,
   "maxPixels": 2073600,
   "apiKey": "modelslab-your-api-key",
+  "modelByScale": {
+    "2": "RealESRGAN_x2plus",
+    "3": "realesr-general-x4v3",
+    "4": "realesr-general-x4v3"
+  },
   "faceEnhance": false
 }
 ```
@@ -249,7 +254,8 @@ Modelslab 版本不会在云端放大后再用本地 `sharp` 做最终 resize。
 | `maxHeight` | 是 | 允许发送给生成 provider 的最大高度 |
 | `maxPixels` | 否 | 允许发送给生成 provider 的最大像素数，例如 `1920 * 1080 = 2073600` |
 | `apiKey` | 是 | Modelslab API Key |
-| `modelId` | 否 | `RealESRGAN_x2plus`、`RealESRGAN_x4plus`、`RealESRGAN_x4plus_anime_6B`、`realesr-general-x4v3` 或 `ultra_resolution`。不填时，`2x` 使用 `RealESRGAN_x2plus`，`3x/4x` 使用 `realesr-general-x4v3` |
+| `modelId` | 否 | 全局强制使用的 Modelslab 模型。配置后会覆盖 `modelByScale` 和内置默认模型 |
+| `modelByScale` | 否 | 按倍率覆盖模型，例如 `{ "2": "RealESRGAN_x2plus", "4": "ultra_resolution" }`。不填时，`2x` 使用 `RealESRGAN_x2plus`，`3x/4x` 使用 `realesr-general-x4v3` |
 | `scale` | 否 | 固定放大倍率。不填时自动按 `2`、`3`、`4` 的顺序选择最小可用倍率 |
 | `faceEnhance` | 否 | 是否启用人脸增强，默认 `false` |
 | `baseURL` | 否 | 自定义 Modelslab super resolution API 地址 |
@@ -373,7 +379,12 @@ Modelslab 版本不会在云端放大后再用本地 `sharp` 做最终 resize。
       "maxWidth": 1920,
       "maxHeight": 1920,
       "maxPixels": 2073600,
-      "apiKey": "modelslab-your-api-key"
+      "apiKey": "modelslab-your-api-key",
+      "modelByScale": {
+        "2": "RealESRGAN_x2plus",
+        "3": "realesr-general-x4v3",
+        "4": "realesr-general-x4v3"
+      }
     }
   ],
   "providers": [
