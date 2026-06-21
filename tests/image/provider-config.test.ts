@@ -130,6 +130,56 @@ describe("parseImageProcessorConfig", () => {
       }),
     ).toThrow("processor config type");
   });
+
+  it("parses local sharp size adapter configs", () => {
+    expect(
+      parseImageProcessorConfig({
+        id: "resize-local",
+        type: "size-adapter:local:sharp-lanczos3",
+        maxWidth: 4096,
+        maxHeight: 4096,
+        maxPixels: 2073600,
+        fit: "inside",
+      }),
+    ).toEqual({
+      id: "resize-local",
+      type: "size-adapter:local:sharp-lanczos3",
+      enabled: undefined,
+      maxWidth: 4096,
+      maxHeight: 4096,
+      maxPixels: 2073600,
+      fit: "inside",
+    });
+  });
+
+  it("parses Modelslab Real-ESRGAN size adapter configs", () => {
+    expect(
+      parseImageProcessorConfig({
+        id: "resize-modelslab",
+        type: "size-adapter:modelslab:real-esrgan",
+        maxWidth: 4096,
+        maxHeight: 4096,
+        maxPixels: 2073600,
+        apiKey: "key-test",
+        modelId: "RealESRGAN_x4plus",
+        scale: 4,
+        faceEnhance: false,
+        baseURL: "https://example.test/upscale",
+      }),
+    ).toEqual({
+      id: "resize-modelslab",
+      type: "size-adapter:modelslab:real-esrgan",
+      enabled: undefined,
+      maxWidth: 4096,
+      maxHeight: 4096,
+      maxPixels: 2073600,
+      apiKey: "key-test",
+      modelId: "RealESRGAN_x4plus",
+      scale: 4,
+      faceEnhance: false,
+      baseURL: "https://example.test/upscale",
+    });
+  });
 });
 
 describe("parseImageRuntimeConfig", () => {

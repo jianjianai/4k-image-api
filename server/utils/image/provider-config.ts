@@ -12,7 +12,10 @@ export type ImageProviderConfig =
   | OpenAIResponsesProviderConfig
   | TestImageProviderConfig;
 
-export type ImageProcessorConfig = TestImageProcessorConfig;
+export type ImageProcessorConfig =
+  | TestImageProcessorConfig
+  | LocalSharpLanczos3SizeAdapterConfig
+  | ModelslabRealEsrganSizeAdapterConfig;
 
 export type TestImageProcessorConfig = {
   id: string;
@@ -21,6 +24,30 @@ export type TestImageProcessorConfig = {
   promptPrefix?: string;
   revisedPromptPrefix?: string;
   outputMimeType?: "image/png" | "image/jpeg" | "image/webp";
+};
+
+export type LocalSharpLanczos3SizeAdapterConfig = {
+  id: string;
+  type: "size-adapter:local:sharp-lanczos3";
+  enabled?: boolean;
+  maxWidth: number;
+  maxHeight: number;
+  maxPixels?: number;
+  fit?: "contain" | "cover" | "fill" | "inside" | "outside";
+};
+
+export type ModelslabRealEsrganSizeAdapterConfig = {
+  id: string;
+  type: "size-adapter:modelslab:real-esrgan";
+  enabled?: boolean;
+  maxWidth: number;
+  maxHeight: number;
+  maxPixels?: number;
+  apiKey: string;
+  modelId?: "RealESRGAN_x4plus" | "RealESRGAN_x4plus_anime_6B" | "RealESRGAN_x2plus";
+  scale?: number;
+  faceEnhance?: boolean;
+  baseURL?: string;
 };
 
 export type OpenAIProviderConfig =
@@ -157,7 +184,17 @@ export const parseImageProcessorConfig = (
     return parseTestImageProcessorConfig(value);
   }
 
-  throw new Error("Image processor config type must be 'testprocessor'.");
+  if (value.type === "size-adapter:local:sharp-lanczos3") {
+    return parseLocalSharpLanczos3SizeAdapterConfig(value);
+  }
+
+  if (value.type === "size-adapter:modelslab:real-esrgan") {
+    return parseModelslabRealEsrganSizeAdapterConfig(value);
+  }
+
+  throw new Error(
+    "Image processor config type must be 'testprocessor', 'size-adapter:local:sharp-lanczos3', or 'size-adapter:modelslab:real-esrgan'.",
+  );
 };
 
 const parseOpenAIProviderConfig = (
@@ -210,6 +247,34 @@ const parseTestImageProcessorConfig = (
     "revisedPromptPrefix",
   ),
   outputMimeType: getOptionalImageMimeType(value.outputMimeType, "outputMimeType"),
+});
+
+const parseLocalSharpLanczos3SizeAdapterConfig = (
+  value: Record<string, unknown>,
+): LocalSharpLanczos3SizeAdapterConfig => ({
+  id: getRequiredString(value.id, "id"),
+  type: "size-adapter:local:sharp-lanczos3",
+  enabled: getOptionalBoolean(value.enabled, "enabled"),
+  maxWidth: getRequiredNumber(value.maxWidth, "maxWidth"),
+  maxHeight: getRequiredNumber(value.maxHeight, "maxHeight"),
+  maxPixels: getOptionalNumber(value.maxPixels, "maxPixels"),
+  fit: getOptionalSharpFit(value.fit, "fit"),
+});
+
+const parseModelslabRealEsrganSizeAdapterConfig = (
+  value: Record<string, unknown>,
+): ModelslabRealEsrganSizeAdapterConfig => ({
+  id: getRequiredString(value.id, "id"),
+  type: "size-adapter:modelslab:real-esrgan",
+  enabled: getOptionalBoolean(value.enabled, "enabled"),
+  maxWidth: getRequiredNumber(value.maxWidth, "maxWidth"),
+  maxHeight: getRequiredNumber(value.maxHeight, "maxHeight"),
+  maxPixels: getOptionalNumber(value.maxPixels, "maxPixels"),
+  apiKey: getRequiredString(value.apiKey, "apiKey"),
+  modelId: getOptionalModelslabModelId(value.modelId, "modelId"),
+  scale: getOptionalNumber(value.scale, "scale"),
+  faceEnhance: getOptionalBoolean(value.faceEnhance, "faceEnhance"),
+  baseURL: getOptionalString(value.baseURL, "baseURL"),
 });
 
 const getRequiredString = (value: unknown, name: string): string => {
@@ -265,6 +330,14 @@ const getOptionalNumber = (
   throw new Error(`Image provider config '${name}' must be a finite number.`);
 };
 
+const getRequiredNumber = (value: unknown, name: string): number => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  throw new Error(`Image processor config '${name}' must be a finite number.`);
+};
+
 const getStringArray = (value: unknown, name: string): string[] => {
   if (
     Array.isArray(value) &&
@@ -290,6 +363,54 @@ const getOptionalImageMimeType = (
 
   throw new Error(
     `Image processor config '${name}' must be 'image/png', 'image/jpeg', or 'image/webp'.`,
+  );
+};
+
+const getOptionalSharpFit = (
+  value: unknown,
+  name: string,
+): "contain" | "cover" | "fill" | "inside" | "outside" | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (
+    value === "contain" ||
+    value === "cover" ||
+    value === "fill" ||
+    value === "inside" ||
+    value === "outside"
+  ) {
+    return value;
+  }
+
+  throw new Error(
+    `Image processor config '${name}' must be 'contain', 'cover', 'fill', 'inside', or 'outside'.`,
+  );
+};
+
+const getOptionalModelslabModelId = (
+  value: unknown,
+  name: string,
+):
+  | "RealESRGAN_x4plus"
+  | "RealESRGAN_x4plus_anime_6B"
+  | "RealESRGAN_x2plus"
+  | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (
+    value === "RealESRGAN_x4plus" ||
+    value === "RealESRGAN_x4plus_anime_6B" ||
+    value === "RealESRGAN_x2plus"
+  ) {
+    return value;
+  }
+
+  throw new Error(
+    `Image processor config '${name}' must be a supported Modelslab RealESRGAN model id.`,
   );
 };
 

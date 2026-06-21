@@ -6,6 +6,25 @@
       "promptPrefix": "[input] ",
       "revisedPromptPrefix": "[output] ",
       "outputMimeType": "image/webp"
+    },
+    {
+      "id": "resize-local-4k",
+      "type": "size-adapter:local:sharp-lanczos3",
+      "maxWidth": 1920,
+      "maxHeight": 1920,
+      "maxPixels": 2073600,
+      "fit": "fill"
+    },
+    {
+      "id": "resize-modelslab-4x",
+      "type": "size-adapter:modelslab:real-esrgan",
+      "maxWidth": 1920,
+      "maxHeight": 1920,
+      "maxPixels": 2073600,
+      "apiKey": "modelslab-your-api-key",
+      "modelId": "RealESRGAN_x4plus",
+      "scale": 4,
+      "faceEnhance": false
     }
   ],
   "providers": [
@@ -20,7 +39,7 @@
       "type": "openai-images",
       "apiKey": "sk-your-api-key",
       "models": ["gpt-image-1", "gpt-image-2"],
-      "processor": "demo-processor",
+      "processor": "resize-local-4k",
       "timeoutMs": 120000,
       "maxRetries": 1
     },

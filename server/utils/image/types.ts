@@ -10,7 +10,10 @@ export type ImageProviderType =
   | "openai-variation"
   | "openai-responses";
 
-export type ImageProcessorType = "testprocessor";
+export type ImageProcessorType =
+  | "testprocessor"
+  | "size-adapter:local:sharp-lanczos3"
+  | "size-adapter:modelslab:real-esrgan";
 
 export type ImageAsset = {
   data: Uint8Array;
