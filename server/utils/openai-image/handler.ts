@@ -4,6 +4,7 @@ import {
   ImageProviderNotFoundError,
   imageProviderManager,
 } from "../image.ts";
+import { assertOpenAIAPIKey } from "./auth.ts";
 import { getOpenAICorsHeaders } from "./cors.ts";
 import { OpenAIClientError, toOpenAIErrorResponse } from "./errors.ts";
 import { readOpenAIRequest } from "./request.ts";
@@ -15,6 +16,7 @@ export const defineOpenAIImageHandler = (
 ) =>
   defineHandler(async (event) => {
     try {
+      assertOpenAIAPIKey(event.req);
       const request = await readOpenAIRequest(event.req);
       const input = await parseRequest(request);
       const output = await imageProviderManager.invoke(input);

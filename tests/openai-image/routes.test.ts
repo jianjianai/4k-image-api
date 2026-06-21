@@ -146,3 +146,74 @@ describe("OpenAI image routes", () => {
     );
   });
 });
+
+describe("OpenAI image route API key protection", () => {
+  let server: TestViteServer;
+
+  beforeAll(async () => {
+    server = await startViteTestServer({
+      NITRO_API_KEYS: "client-key",
+    });
+  });
+
+  afterAll(async () => {
+    await server.close();
+  });
+
+  it("rejects requests without a configured API key", async () => {
+    const response = await server.fetch("/v1/images/generations", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "http://example.test",
+      },
+      body: JSON.stringify({
+        model: "test-image",
+        prompt: "cat",
+      }),
+    });
+
+    await expectOpenAIError(response, {
+      status: 401,
+      code: "invalid_api_key",
+      param: null,
+      messageIncludes: "API key",
+    });
+  });
+
+  it("allows requests with a configured bearer API key", async () => {
+    const response = await server.fetch("/v1/images/generations", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer client-key",
+        "content-type": "application/json",
+        origin: "http://example.test",
+      },
+      body: JSON.stringify({
+        model: "missing-image-model",
+        prompt: "cat",
+      }),
+    });
+
+    await expectOpenAIError(response, {
+      status: 404,
+      code: "model_not_found",
+      param: "model",
+      messageIncludes: "missing-image-model",
+    });
+  });
+
+  it("keeps CORS preflight unauthenticated", async () => {
+    const response = await server.fetch("/v1/images/generations", {
+      method: "OPTIONS",
+      headers: {
+        origin: "http://example.test",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "authorization,content-type",
+      },
+    });
+
+    expect(response.status).toBe(204);
+    expect(await response.text()).toBe("");
+  });
+});

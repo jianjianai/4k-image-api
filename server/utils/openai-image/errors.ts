@@ -5,6 +5,7 @@ export type OpenAIErrorCode =
   | "invalid_content_type"
   | "invalid_json"
   | "invalid_image"
+  | "invalid_api_key"
   | "model_required"
   | "model_not_found";
 

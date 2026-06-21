@@ -8,7 +8,10 @@ export type TestViteServer = {
   close: () => Promise<void>;
 };
 
-export const startViteTestServer = async (): Promise<TestViteServer> => {
+export const startViteTestServer = async (
+  env: Record<string, string | undefined> = {},
+): Promise<TestViteServer> => {
+  const restoreEnv = setEnv(env);
   const server = await createServer({
     configFile: resolve(process.cwd(), "vite.config.ts"),
     logLevel: "silent",
@@ -27,7 +30,36 @@ export const startViteTestServer = async (): Promise<TestViteServer> => {
   return {
     baseURL,
     fetch: (path, init) => fetch(new URL(path, baseURL), init),
-    close: () => server.close(),
+    close: async () => {
+      await server.close();
+      restoreEnv();
+    },
+  };
+};
+
+const setEnv = (env: Record<string, string | undefined>): (() => void) => {
+  const previous = new Map<string, string | undefined>();
+
+  for (const [key, value] of Object.entries(env)) {
+    previous.set(key, process.env[key]);
+
+    if (value === undefined) {
+      delete process.env[key];
+      continue;
+    }
+
+    process.env[key] = value;
+  }
+
+  return () => {
+    for (const [key, value] of previous) {
+      if (value === undefined) {
+        delete process.env[key];
+        continue;
+      }
+
+      process.env[key] = value;
+    }
   };
 };
 
