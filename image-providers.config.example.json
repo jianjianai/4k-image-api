@@ -1,0 +1,41 @@
+{
+  "processors": [
+    {
+      "id": "demo-processor",
+      "type": "testprocessor",
+      "promptPrefix": "[input] ",
+      "revisedPromptPrefix": "[output] ",
+      "outputMimeType": "image/webp"
+    }
+  ],
+  "providers": [
+    {
+      "id": "local-test",
+      "type": "test",
+      "models": ["test-image", "gpt-image-1"],
+      "processor": "demo-processor"
+    },
+    {
+      "id": "openai-images-main",
+      "type": "openai-images",
+      "apiKey": "sk-your-api-key",
+      "models": ["gpt-image-1", "gpt-image-2"],
+      "processor": "demo-processor",
+      "timeoutMs": 120000,
+      "maxRetries": 1
+    },
+    {
+      "id": "openai-variation-main",
+      "type": "openai-variation",
+      "apiKey": "sk-your-api-key",
+      "models": ["dall-e-2"]
+    },
+    {
+      "id": "openai-responses-main",
+      "type": "openai-responses",
+      "apiKey": "sk-your-api-key",
+      "models": ["gpt-image-1", "gpt-image-2"],
+      "baseURL": "https://api.openai.com/v1"
+    }
+  ]
+}

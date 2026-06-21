@@ -1,4 +1,5 @@
 import { useRuntimeConfig } from "nitro/runtime-config";
+import { readImageConfigFile } from "./provider-config-file.ts";
 
 export type ImageRuntimeConfig = {
   providers: ImageProviderConfig[];
@@ -61,6 +62,12 @@ export type TestImageProviderConfig = {
 };
 
 export const readImageRuntimeConfig = (): ImageRuntimeConfig => {
+  const fileConfig = readImageConfigFile();
+
+  if (fileConfig !== undefined) {
+    return parseImageRuntimeConfig(fileConfig);
+  }
+
   const raw = useRuntimeConfig().imageProviders;
 
   if (typeof raw !== "string" || raw.trim().length === 0) {

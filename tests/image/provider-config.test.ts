@@ -1,4 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it, vi } from "vitest";
+import { readImageConfigFile } from "../../server/utils/image/provider-config-file.ts";
 import {
   parseImageProcessorConfig,
   parseImageProviderConfig,
@@ -190,5 +194,98 @@ describe("parseImageRuntimeConfig", () => {
         },
       ],
     });
+  });
+});
+
+describe("readImageConfigFile", () => {
+  it("returns undefined when the JSON config file does not exist", () => {
+    const dir = mkdtempSync(join(tmpdir(), "image-config-"));
+
+    try {
+      expect(readImageConfigFile(join(dir, "missing.json"))).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads JSON config files", () => {
+    const dir = mkdtempSync(join(tmpdir(), "image-config-"));
+    const file = join(dir, "image-providers.config.json");
+
+    try {
+      writeFileSync(
+        file,
+        JSON.stringify({
+          providers: [
+            {
+              type: "test",
+              models: ["file-model"],
+            },
+          ],
+        }),
+      );
+
+      expect(readImageConfigFile(file)).toEqual({
+        providers: [
+          {
+            type: "test",
+            models: ["file-model"],
+          },
+        ],
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("readImageRuntimeConfig", () => {
+  it("prefers JSON file config over runtime config", async () => {
+    vi.resetModules();
+    vi.doMock("../../server/utils/image/provider-config-file.ts", () => ({
+      readImageConfigFile: () => ({
+        providers: [
+          {
+            type: "test",
+            models: ["file-model"],
+          },
+        ],
+      }),
+    }));
+    vi.doMock("nitro/runtime-config", () => ({
+      useRuntimeConfig: () => ({
+        imageProviders: JSON.stringify({
+          providers: [
+            {
+              type: "test",
+              models: ["env-model"],
+            },
+          ],
+        }),
+      }),
+    }));
+
+    try {
+      const { readImageRuntimeConfig } = await import(
+        "../../server/utils/image/provider-config.ts"
+      );
+
+      expect(readImageRuntimeConfig()).toEqual({
+        processors: [],
+        providers: [
+          {
+            id: undefined,
+            type: "test",
+            enabled: undefined,
+            processor: undefined,
+            models: ["file-model"],
+          },
+        ],
+      });
+    } finally {
+      vi.doUnmock("../../server/utils/image/provider-config-file.ts");
+      vi.doUnmock("nitro/runtime-config");
+      vi.resetModules();
+    }
   });
 });

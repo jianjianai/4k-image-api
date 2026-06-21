@@ -68,7 +68,12 @@ pnpm preview
 
 ## 图片后端配置
 
-图片后端配置通过 Nitro `runtimeConfig.imageProviders` 读取，类型是 JSON 字符串。当前 `nitro.config.ts` 的默认值是：
+图片后端配置支持两种加载方式，优先级从高到低：
+
+1. 项目根目录的 `image-providers.config.json`
+2. Nitro `runtimeConfig.imageProviders`，通常通过环境变量 `NITRO_IMAGE_PROVIDERS` 覆盖
+
+当前 `nitro.config.ts` 的默认值是：
 
 ```ts
 runtimeConfig: {
@@ -78,7 +83,7 @@ runtimeConfig: {
 
 如果配置为空数组，服务会注册内置 `test` provider，用于本地开发和接口联调。
 
-推荐使用对象格式：
+推荐在 `image-providers.config.json` 使用对象格式：
 
 ```json
 {
@@ -89,7 +94,7 @@ runtimeConfig: {
 
 旧的 provider 数组格式仍然兼容。
 
-在运行时可以用环境变量覆盖：
+如果没有 `image-providers.config.json`，可以用环境变量配置：
 
 ```bash
 NITRO_IMAGE_PROVIDERS='{"processors":[],"providers":[]}' pnpm dev
