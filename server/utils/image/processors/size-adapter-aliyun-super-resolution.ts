@@ -2,6 +2,7 @@ import { Readable } from "node:stream";
 import AliyunImageEnhancement, {
   MakeSuperResolutionImageAdvanceRequest,
 } from "@alicloud/imageenhan20190930";
+import sharp from "sharp";
 import { OpenAIClientError } from "../../openai-image/errors.ts";
 import {
   elapsedMs,
@@ -22,6 +23,11 @@ import {
 
 const defaultRegionId = "cn-shanghai";
 const defaultScales = [1, 2, 3, 4] as const;
+const aliyunMaxInputSize = {
+  width: 1920,
+  height: 1080,
+  maxPixels: 1920 * 1080,
+};
 
 type AliyunImageEnhancementClient = {
   makeSuperResolutionImageAdvance: (
@@ -58,9 +64,20 @@ export const createAliyunSuperResolutionSizeAdapter = (
       ...output,
       images: await Promise.all(
         output.images.map(async (image) => {
-          const result = await upscaleImage(image.bytes, image.mimeType, config, {
-            scale: state.scale ?? config.scale ?? 4,
-          });
+          const scale = state.scale ?? config.scale ?? 4;
+          const inputImage = await prepareAliyunInputImage(
+            image.bytes,
+            image.mimeType,
+            state,
+            config,
+            scale,
+          );
+          const result = await upscaleImage(
+            inputImage.bytes,
+            inputImage.mimeType,
+            config,
+            { scale },
+          );
 
           return {
             ...image,
@@ -78,23 +95,15 @@ const adaptAliyunInputSize = (
   config: AliyunSuperResolutionSizeAdapterConfig,
 ): ImageInput => {
   const requestedSize = parseImageSize(input.size);
+  const maxSize = getConfiguredAliyunInputMaxSize(config);
 
   if (
     !requestedSize ||
-    fitsWithin(requestedSize, {
-      width: config.maxWidth,
-      height: config.maxHeight,
-      maxPixels: config.maxPixels,
-    })
+    fitsWithin(requestedSize, maxSize)
   ) {
     return input;
   }
 
-  const maxSize = {
-    width: config.maxWidth,
-    height: config.maxHeight,
-    maxPixels: config.maxPixels,
-  };
   const plan = chooseUpscalePlan(requestedSize, maxSize, config);
 
   imageLog("aliyun size adapter planned", {
@@ -102,9 +111,9 @@ const adaptAliyunInputSize = (
     originalSize: input.size,
     adaptedSize: formatImageSize(plan.adaptedSize),
     scale: plan.scale,
-    maxWidth: config.maxWidth,
-    maxHeight: config.maxHeight,
-    maxPixels: config.maxPixels,
+    maxWidth: maxSize.width,
+    maxHeight: maxSize.height,
+    maxPixels: maxSize.maxPixels,
   });
 
   return withSizeAdapterState(input, {
@@ -169,6 +178,156 @@ const fitsWithin = (
   size.height <= maxSize.height &&
   (maxSize.maxPixels === undefined ||
     size.width * size.height <= maxSize.maxPixels);
+
+const prepareAliyunInputImage = async (
+  bytes: Uint8Array,
+  mimeType: ImageMimeType,
+  state: NonNullable<ReturnType<typeof getSizeAdapterState>>,
+  config: AliyunSuperResolutionSizeAdapterConfig,
+  scale: number,
+): Promise<{
+  bytes: Uint8Array;
+  mimeType: ImageMimeType;
+}> => {
+  const actualSize = await getImageSize(bytes);
+  const maxSize = getOutputAliyunInputMaxSize(state, config, scale);
+
+  if (fitsWithin(actualSize, maxSize)) {
+    return { bytes, mimeType };
+  }
+
+  const adaptedSize = fitWithin(actualSize, maxSize);
+
+  imageLog("aliyun output image resized", {
+    processorId: config.id,
+    originalSize: formatImageSize(actualSize),
+    adaptedSize: formatImageSize(adaptedSize),
+    scale,
+    maxWidth: maxSize.width,
+    maxHeight: maxSize.height,
+    maxPixels: maxSize.maxPixels,
+  });
+
+  return resizeImage(bytes, mimeType, adaptedSize);
+};
+
+const getImageSize = async (
+  bytes: Uint8Array,
+): Promise<{ width: number; height: number }> => {
+  const metadata = await sharp(bytes).metadata();
+
+  if (
+    typeof metadata.width === "number" &&
+    Number.isFinite(metadata.width) &&
+    typeof metadata.height === "number" &&
+    Number.isFinite(metadata.height)
+  ) {
+    return {
+      width: metadata.width,
+      height: metadata.height,
+    };
+  }
+
+  throw new OpenAIClientError("Aliyun size adapter could not read image dimensions.");
+};
+
+const getOutputAliyunInputMaxSize = (
+  state: NonNullable<ReturnType<typeof getSizeAdapterState>>,
+  config: AliyunSuperResolutionSizeAdapterConfig,
+  scale: number,
+): { width: number; height: number; maxPixels?: number } => {
+  const configuredMaxSize = getConfiguredAliyunInputMaxSize(config);
+  const scaledTargetMaxSize = {
+    width: Math.max(1, Math.floor(state.target.width / scale)),
+    height: Math.max(1, Math.floor(state.target.height / scale)),
+    maxPixels: Math.max(
+      1,
+      Math.floor((state.target.width * state.target.height) / (scale * scale)),
+    ),
+  };
+
+  return minMaxSize(configuredMaxSize, scaledTargetMaxSize);
+};
+
+const getConfiguredAliyunInputMaxSize = (
+  config: AliyunSuperResolutionSizeAdapterConfig,
+): { width: number; height: number; maxPixels?: number } => ({
+  width: Math.min(config.maxWidth, aliyunMaxInputSize.width),
+  height: Math.min(config.maxHeight, aliyunMaxInputSize.height),
+  maxPixels: minOptionalNumber(config.maxPixels, aliyunMaxInputSize.maxPixels),
+});
+
+const minMaxSize = (
+  first: { width: number; height: number; maxPixels?: number },
+  second: { width: number; height: number; maxPixels?: number },
+): { width: number; height: number; maxPixels?: number } => ({
+  width: Math.min(first.width, second.width),
+  height: Math.min(first.height, second.height),
+  maxPixels: minOptionalNumber(first.maxPixels, second.maxPixels),
+});
+
+const minOptionalNumber = (
+  ...values: Array<number | undefined>
+): number | undefined => {
+  const numbers = values.filter((value): value is number => value !== undefined);
+
+  if (numbers.length === 0) {
+    return undefined;
+  }
+
+  return Math.min(...numbers);
+};
+
+const fitWithin = (
+  size: { width: number; height: number },
+  maxSize: { width: number; height: number; maxPixels?: number },
+): { width: number; height: number } => {
+  const pixelScale =
+    maxSize.maxPixels === undefined
+      ? 1
+      : Math.sqrt(maxSize.maxPixels / (size.width * size.height));
+  const scale = Math.min(
+    1,
+    maxSize.width / size.width,
+    maxSize.height / size.height,
+    pixelScale,
+  );
+
+  return {
+    width: Math.max(1, Math.floor(size.width * scale)),
+    height: Math.max(1, Math.floor(size.height * scale)),
+  };
+};
+
+const resizeImage = async (
+  bytes: Uint8Array,
+  mimeType: ImageMimeType,
+  size: { width: number; height: number },
+): Promise<{
+  bytes: Uint8Array;
+  mimeType: ImageMimeType;
+}> => {
+  let pipeline = sharp(bytes).resize({
+    width: size.width,
+    height: size.height,
+    fit: "inside",
+    withoutEnlargement: true,
+    kernel: sharp.kernel.lanczos3,
+  });
+
+  if (mimeType === "image/jpeg") {
+    pipeline = pipeline.jpeg();
+  } else if (mimeType === "image/webp") {
+    pipeline = pipeline.webp();
+  } else {
+    pipeline = pipeline.png();
+  }
+
+  return {
+    bytes: new Uint8Array(await pipeline.toBuffer()),
+    mimeType,
+  };
+};
 
 const upscaleImage = async (
   bytes: Uint8Array,

@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAliyunSuperResolutionSizeAdapter } from "../../server/utils/image/processors/size-adapter-aliyun-super-resolution.ts";
 import type { ImageInput, ImageOutput } from "../../server/utils/image.ts";
@@ -82,7 +83,11 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
     vi.stubGlobal("fetch", fetch);
     const processor = createProcessor();
     const input = await processor.processInput?.(imageInput("2048x1024"), context());
-    const output = await processor.processOutput?.(imageOutput(), input!, context());
+    const output = await processor.processOutput?.(
+      imageOutput(await createPng(1024, 512)),
+      input!,
+      context(),
+    );
 
     expect(input?.size).toBe("1024x512");
     expect(mocks.clientConstructor).toHaveBeenCalledWith({
@@ -133,12 +138,16 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
     });
     const input = await processor.processInput?.(imageInput("2480x3328"), context());
 
-    await processor.processOutput?.(imageOutput(), input!, context());
+    await processor.processOutput?.(
+      imageOutput(await createPng(620, 832)),
+      input!,
+      context(),
+    );
 
-    expect(input?.size).toBe("1240x1664");
+    expect(input?.size).toBe("620x832");
     expect(mocks.makeSuperResolutionImageAdvance).toHaveBeenCalledWith(
       expect.objectContaining({
-        upscaleFactor: 2,
+        upscaleFactor: 4,
       }),
       expect.any(Object),
     );
@@ -164,7 +173,11 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
     });
     const input = await processor.processInput?.(imageInput("2400x3200"), context());
 
-    await processor.processOutput?.(imageOutput(), input!, context());
+    await processor.processOutput?.(
+      imageOutput(await createPng(600, 800)),
+      input!,
+      context(),
+    );
 
     expect(input?.size).toBe("600x800");
     expect(mocks.makeSuperResolutionImageAdvance).toHaveBeenCalledWith(
@@ -173,6 +186,95 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
       }),
       expect.any(Object),
     );
+  });
+
+  it("resizes provider output by actual dimensions before Aliyun upload", async () => {
+    mocks.makeSuperResolutionImageAdvance.mockResolvedValueOnce({
+      body: {
+        data: {
+          url: "https://example.test/output.png",
+        },
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(new Response(new Uint8Array([9, 8, 7]))),
+    );
+    const processor = createProcessor({
+      scale: undefined,
+    });
+    const input = await processor.processInput?.(imageInput("2880x2880"), context());
+    const source = await sharp({
+      create: {
+        width: 1280,
+        height: 1280,
+        channels: 4,
+        background: "red",
+      },
+    })
+      .png()
+      .toBuffer();
+
+    await processor.processOutput?.(
+      imageOutput(new Uint8Array(source)),
+      input!,
+      context(),
+    );
+
+    const request = mocks.makeSuperResolutionImageAdvance.mock.calls[0]?.[0] as {
+      urlObject?: AsyncIterable<Uint8Array>;
+      upscaleFactor?: number;
+    };
+    const upload = await readableToBuffer(request.urlObject!);
+    const metadata = await sharp(upload).metadata();
+
+    expect(input?.size).toBe("960x960");
+    expect(request.upscaleFactor).toBe(3);
+    expect(metadata.width).toBe(960);
+    expect(metadata.height).toBe(960);
+  });
+
+  it("preserves provider output aspect ratio when resizing before Aliyun upload", async () => {
+    mocks.makeSuperResolutionImageAdvance.mockResolvedValueOnce({
+      body: {
+        data: {
+          url: "https://example.test/output.png",
+        },
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(new Response(new Uint8Array([9, 8, 7]))),
+    );
+    const processor = createProcessor({
+      scale: undefined,
+    });
+    const input = await processor.processInput?.(imageInput("2880x2880"), context());
+    const source = await sharp({
+      create: {
+        width: 1600,
+        height: 1200,
+        channels: 4,
+        background: "red",
+      },
+    })
+      .png()
+      .toBuffer();
+
+    await processor.processOutput?.(
+      imageOutput(new Uint8Array(source)),
+      input!,
+      context(),
+    );
+
+    const request = mocks.makeSuperResolutionImageAdvance.mock.calls[0]?.[0] as {
+      urlObject?: AsyncIterable<Uint8Array>;
+    };
+    const upload = await readableToBuffer(request.urlObject!);
+    const metadata = await sharp(upload).metadata();
+
+    expect(metadata.width).toBe(960);
+    expect(metadata.height).toBe(720);
   });
 
   it("rejects sizes that cannot be produced exactly without a final resize", async () => {
@@ -213,14 +315,40 @@ const imageInput = (size: string): ImageInput => ({
   size,
 });
 
-const imageOutput = (): ImageOutput => ({
+const imageOutput = (bytes: Uint8Array = new Uint8Array([1, 2, 3])): ImageOutput => ({
   images: [
     {
-      bytes: new Uint8Array([1, 2, 3]),
+      bytes,
       mimeType: "image/png",
     },
   ],
 });
+
+const createPng = async (width: number, height: number): Promise<Uint8Array> =>
+  new Uint8Array(
+    await sharp({
+      create: {
+        width,
+        height,
+        channels: 4,
+        background: "red",
+      },
+    })
+      .png()
+      .toBuffer(),
+  );
+
+const readableToBuffer = async (
+  readable: AsyncIterable<Uint8Array>,
+): Promise<Buffer> => {
+  const chunks: Uint8Array[] = [];
+
+  for await (const chunk of readable) {
+    chunks.push(chunk);
+  }
+
+  return Buffer.concat(chunks);
+};
 
 const context = () => ({
   providerId: "test-provider",
