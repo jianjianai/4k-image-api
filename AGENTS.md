@@ -21,6 +21,17 @@ When working on image providers or processors, protect image generation cost:
 - Preserve aspect ratio. Do not stretch or distort generated images to force an exact size.
 - Only fail after generation when no usable image can be returned, such as invalid image bytes, failed downloads, or unrecoverable processor/provider errors.
 
+## Image Size Adapter Policy
+
+When implementing or changing image size adapters, keep `processInput` and `processOutput` responsibilities separate:
+
+- `processInput` runs before image generation. It should match the client-requested aspect ratio and send the largest image size the upstream generation provider can accept within configured limits. The generated request size should preserve the client aspect ratio and maximize source detail.
+- `processOutput` runs after image generation. It must preserve the upstream image aspect ratio; never stretch the generated image to force the client-requested ratio.
+- `processOutput` should try to satisfy both client-requested width and height. Prefer dimensions whose width is not lower than the requested width and whose height is not lower than the requested height.
+- If both requested dimensions cannot be satisfied, return the largest achievable image instead of failing, because generation cost has already been spent.
+- If a cloud upscaler requires shrinking the generated image before upload, shrink proportionally to the largest size accepted by that upscaler and configuration. Do not shrink to `requestedSize / upscaleFactor` when that would damage the source image more than necessary.
+- Choose the upscale factor after considering the actual generated image size. Use the smallest factor that satisfies the client dimensions when possible; otherwise use the maximum supported factor and return the best achievable result.
+
 
 
 # AGENTS.md
