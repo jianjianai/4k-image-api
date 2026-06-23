@@ -58,7 +58,7 @@
       "apiKey": "sk-your-api-key",
       "models": ["gpt-image-1", "gpt-image-2"],
       "processor": "resize-local-4k",
-      "userAgent": "4k-image-api",
+      "userAgent": "Codex Desktop/0.140.0-alpha.2 (Windows 10.0.26200; x86_64) unknown (Codex Desktop; 26.609.41114)",
       "timeoutMs": 120000,
       "maxRetries": 1
     },
