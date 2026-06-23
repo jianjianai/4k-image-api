@@ -188,6 +188,43 @@ describe("parseImageProcessorConfig", () => {
       baseURL: "https://example.test/upscale",
     });
   });
+
+  it("parses Aliyun super resolution size adapter configs", () => {
+    expect(
+      parseImageProcessorConfig({
+        id: "resize-aliyun",
+        type: "size-adapter:aliyun:super-resolution",
+        maxWidth: 4096,
+        maxHeight: 4096,
+        maxPixels: 2073600,
+        accessKeyId: "access-key-id-test",
+        accessKeySecret: "access-key-secret-test",
+        regionId: "cn-shanghai",
+        endpoint: "imageenhan.cn-shanghai.aliyuncs.com",
+        scale: 4,
+        mode: "base",
+        outputFormat: "png",
+        outputQuality: 95,
+        timeoutMs: 120000,
+      }),
+    ).toEqual({
+      id: "resize-aliyun",
+      type: "size-adapter:aliyun:super-resolution",
+      enabled: undefined,
+      maxWidth: 4096,
+      maxHeight: 4096,
+      maxPixels: 2073600,
+      accessKeyId: "access-key-id-test",
+      accessKeySecret: "access-key-secret-test",
+      regionId: "cn-shanghai",
+      endpoint: "imageenhan.cn-shanghai.aliyuncs.com",
+      scale: 4,
+      mode: "base",
+      outputFormat: "png",
+      outputQuality: 95,
+      timeoutMs: 120000,
+    });
+  });
 });
 
 describe("parseImageRuntimeConfig", () => {

@@ -15,6 +15,7 @@ export type ImageProviderConfig =
 export type ImageProcessorConfig =
   | TestImageProcessorConfig
   | LocalSharpLanczos3SizeAdapterConfig
+  | AliyunSuperResolutionSizeAdapterConfig
   | ModelslabRealEsrganSizeAdapterConfig;
 
 export type TestImageProcessorConfig = {
@@ -49,6 +50,24 @@ export type ModelslabRealEsrganSizeAdapterConfig = {
   scale?: number;
   faceEnhance?: boolean;
   baseURL?: string;
+};
+
+export type AliyunSuperResolutionSizeAdapterConfig = {
+  id: string;
+  type: "size-adapter:aliyun:super-resolution";
+  enabled?: boolean;
+  maxWidth: number;
+  maxHeight: number;
+  maxPixels?: number;
+  accessKeyId: string;
+  accessKeySecret: string;
+  regionId?: string;
+  endpoint?: string;
+  scale?: 1 | 2 | 3 | 4;
+  mode?: string;
+  outputFormat?: "png" | "jpg" | "bmp";
+  outputQuality?: number;
+  timeoutMs?: number;
 };
 
 export type ModelslabRealEsrganModelId =
@@ -196,12 +215,16 @@ export const parseImageProcessorConfig = (
     return parseLocalSharpLanczos3SizeAdapterConfig(value);
   }
 
+  if (value.type === "size-adapter:aliyun:super-resolution") {
+    return parseAliyunSuperResolutionSizeAdapterConfig(value);
+  }
+
   if (value.type === "size-adapter:modelslab:real-esrgan") {
     return parseModelslabRealEsrganSizeAdapterConfig(value);
   }
 
   throw new Error(
-    "Image processor config type must be 'testprocessor', 'size-adapter:local:sharp-lanczos3', or 'size-adapter:modelslab:real-esrgan'.",
+    "Image processor config type must be 'testprocessor', 'size-adapter:local:sharp-lanczos3', 'size-adapter:aliyun:super-resolution', or 'size-adapter:modelslab:real-esrgan'.",
   );
 };
 
@@ -286,6 +309,29 @@ const parseModelslabRealEsrganSizeAdapterConfig = (
   baseURL: getOptionalString(value.baseURL, "baseURL"),
 });
 
+const parseAliyunSuperResolutionSizeAdapterConfig = (
+  value: Record<string, unknown>,
+): AliyunSuperResolutionSizeAdapterConfig => ({
+  id: getRequiredString(value.id, "id"),
+  type: "size-adapter:aliyun:super-resolution",
+  enabled: getOptionalBoolean(value.enabled, "enabled"),
+  maxWidth: getRequiredNumber(value.maxWidth, "maxWidth"),
+  maxHeight: getRequiredNumber(value.maxHeight, "maxHeight"),
+  maxPixels: getOptionalNumber(value.maxPixels, "maxPixels"),
+  accessKeyId: getRequiredString(value.accessKeyId, "accessKeyId"),
+  accessKeySecret: getRequiredString(value.accessKeySecret, "accessKeySecret"),
+  regionId: getOptionalString(value.regionId, "regionId"),
+  endpoint: getOptionalString(value.endpoint, "endpoint"),
+  scale: getOptionalAliyunSuperResolutionScale(value.scale, "scale"),
+  mode: getOptionalString(value.mode, "mode"),
+  outputFormat: getOptionalAliyunSuperResolutionOutputFormat(
+    value.outputFormat,
+    "outputFormat",
+  ),
+  outputQuality: getOptionalNumber(value.outputQuality, "outputQuality"),
+  timeoutMs: getOptionalNumber(value.timeoutMs, "timeoutMs"),
+});
+
 const getRequiredString = (value: unknown, name: string): string => {
   if (typeof value === "string" && value.length > 0) {
     return value;
@@ -345,6 +391,38 @@ const getRequiredNumber = (value: unknown, name: string): number => {
   }
 
   throw new Error(`Image processor config '${name}' must be a finite number.`);
+};
+
+const getOptionalAliyunSuperResolutionScale = (
+  value: unknown,
+  name: string,
+): 1 | 2 | 3 | 4 | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === 1 || value === 2 || value === 3 || value === 4) {
+    return value;
+  }
+
+  throw new Error(`Image processor config '${name}' must be 1, 2, 3, or 4.`);
+};
+
+const getOptionalAliyunSuperResolutionOutputFormat = (
+  value: unknown,
+  name: string,
+): "png" | "jpg" | "bmp" | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === "png" || value === "jpg" || value === "bmp") {
+    return value;
+  }
+
+  throw new Error(
+    `Image processor config '${name}' must be 'png', 'jpg', or 'bmp'.`,
+  );
 };
 
 const getStringArray = (value: unknown, name: string): string[] => {

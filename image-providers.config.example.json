@@ -28,6 +28,21 @@
         "4": "realesr-general-x4v3"
       },
       "faceEnhance": false
+    },
+    {
+      "id": "resize-aliyun-auto",
+      "type": "size-adapter:aliyun:super-resolution",
+      "maxWidth": 1920,
+      "maxHeight": 1920,
+      "maxPixels": 2073600,
+      "accessKeyId": "aliyun-your-access-key-id",
+      "accessKeySecret": "aliyun-your-access-key-secret",
+      "regionId": "cn-shanghai",
+      "scale": 4,
+      "mode": "base",
+      "outputFormat": "png",
+      "outputQuality": 95,
+      "timeoutMs": 120000
     }
   ],
   "providers": [

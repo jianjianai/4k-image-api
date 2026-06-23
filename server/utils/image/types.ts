@@ -13,6 +13,7 @@ export type ImageProviderType =
 export type ImageProcessorType =
   | "testprocessor"
   | "size-adapter:local:sharp-lanczos3"
+  | "size-adapter:aliyun:super-resolution"
   | "size-adapter:modelslab:real-esrgan";
 
 export type ImageAsset = {
