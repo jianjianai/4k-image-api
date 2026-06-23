@@ -1,5 +1,12 @@
 import { bytesToBase64 } from "../../openai-image/assets.ts";
 import { OpenAIClientError } from "../../openai-image/errors.ts";
+import {
+  elapsedMs,
+  imageError,
+  imageLog,
+  nowMs,
+  summarizeURL,
+} from "../logger.ts";
 import type { ModelslabRealEsrganSizeAdapterConfig } from "../provider-config.ts";
 import type { ImageInput, ImageMimeType, ImageProcessor } from "../types.ts";
 import {
@@ -24,6 +31,10 @@ export const createModelslabRealEsrganSizeAdapter = (
     const state = getSizeAdapterState(input);
 
     if (!state) {
+      imageLog("modelslab size adapter skipped", {
+        processorId: config.id,
+        reason: "input size within max size or missing size",
+      });
       return output;
     }
 
@@ -70,6 +81,17 @@ const adaptModelslabInputSize = (
     maxPixels: config.maxPixels,
   };
   const plan = chooseUpscalePlan(requestedSize, maxSize, config);
+
+  imageLog("modelslab size adapter planned", {
+    processorId: config.id,
+    originalSize: input.size,
+    adaptedSize: formatImageSize(plan.adaptedSize),
+    scale: plan.scale,
+    modelId: getModelIdForScale(plan.scale, config),
+    maxWidth: config.maxWidth,
+    maxHeight: config.maxHeight,
+    maxPixels: config.maxPixels,
+  });
 
   return withSizeAdapterState(input, {
     originalSize: input.size!,
@@ -164,7 +186,19 @@ const upscaleImage = async (
   bytes: Uint8Array;
   mimeType: ImageMimeType;
 }> => {
-  const response = await fetch(config.baseURL ?? defaultBaseURL, {
+  const startedAt = nowMs();
+  const requestURL = config.baseURL ?? defaultBaseURL;
+
+  imageLog("modelslab super resolution request", {
+    processorId: config.id,
+    url: summarizeURL(requestURL),
+    modelId: request.modelId,
+    scale: request.scale,
+    faceEnhance: config.faceEnhance ?? false,
+    inputBytes: bytes.byteLength,
+    inputMimeType: mimeType,
+  });
+  const response = await fetch(requestURL, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -179,6 +213,12 @@ const upscaleImage = async (
   });
 
   if (!response.ok) {
+    imageError("modelslab super resolution failed", {
+      processorId: config.id,
+      url: summarizeURL(requestURL),
+      status: response.status,
+      elapsedMs: elapsedMs(startedAt),
+    });
     throw new OpenAIClientError(
       `Modelslab size adapter request failed with status ${response.status}.`,
       {
@@ -190,6 +230,12 @@ const upscaleImage = async (
 
   const payload = (await response.json()) as unknown;
   const imageURL = getModelslabOutputURL(payload);
+
+  imageLog("modelslab super resolution response", {
+    processorId: config.id,
+    elapsedMs: elapsedMs(startedAt),
+    outputURL: summarizeURL(imageURL),
+  });
 
   if (!imageURL) {
     throw new OpenAIClientError(
@@ -236,9 +282,19 @@ const downloadImage = async (
   bytes: Uint8Array;
   mimeType: ImageMimeType;
 }> => {
+  const startedAt = nowMs();
+
+  imageLog("modelslab output download request", {
+    url: summarizeURL(url),
+  });
   const response = await fetch(url);
 
   if (!response.ok) {
+    imageError("modelslab output download failed", {
+      url: summarizeURL(url),
+      status: response.status,
+      elapsedMs: elapsedMs(startedAt),
+    });
     throw new OpenAIClientError(
       `Modelslab size adapter output download failed with status ${response.status}.`,
       {
@@ -248,9 +304,20 @@ const downloadImage = async (
     );
   }
 
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const mimeType = normalizeMimeType(response.headers.get("content-type"));
+
+  imageLog("modelslab output download response", {
+    url: summarizeURL(url),
+    status: response.status,
+    elapsedMs: elapsedMs(startedAt),
+    bytes: bytes.byteLength,
+    mimeType,
+  });
+
   return {
-    bytes: new Uint8Array(await response.arrayBuffer()),
-    mimeType: normalizeMimeType(response.headers.get("content-type")),
+    bytes,
+    mimeType,
   };
 };
 

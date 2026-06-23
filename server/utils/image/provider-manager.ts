@@ -4,6 +4,13 @@ import type {
   ImageProvider,
   ImageProviders,
 } from "./types.ts";
+import {
+  elapsedMs,
+  imageLog,
+  nowMs,
+  summarizeInput,
+  summarizeOutput,
+} from "./logger.ts";
 import { imageProcessorManager } from "./processor-manager.ts";
 
 export class ImageModelRequiredError extends Error {
@@ -73,8 +80,26 @@ const createImageProviderManager = (
         throw new ImageProviderNotFoundError(input.model);
       }
 
+      imageLog("provider selected", {
+        providerId: provider.id,
+        providerType: provider.type,
+        processorId: provider.processorId,
+        action: input.action,
+        model: input.model,
+        size: input.size,
+      });
+
       if (!provider.processorId) {
-        return provider.invoke(input);
+        const startedAt = nowMs();
+        const output = await provider.invoke(input);
+
+        imageLog("provider completed", {
+          providerId: provider.id,
+          elapsedMs: elapsedMs(startedAt),
+          output: summarizeOutput(output),
+        });
+
+        return output;
       }
 
       const processor = imageProcessorManager.get(provider.processorId);
@@ -94,12 +119,30 @@ const createImageProviderManager = (
       };
       const processedInput =
         (await processor.processInput?.(input, context)) ?? input;
+      imageLog("processor input completed", {
+        processorId: processor.id,
+        original: summarizeInput(input),
+        processed: summarizeInput(processedInput),
+      });
+      const providerStartedAt = nowMs();
       const output = await provider.invoke(processedInput);
-
-      return (
+      imageLog("provider completed", {
+        providerId: provider.id,
+        elapsedMs: elapsedMs(providerStartedAt),
+        output: summarizeOutput(output),
+      });
+      const processorStartedAt = nowMs();
+      const processedOutput =
         (await processor.processOutput?.(output, processedInput, context)) ??
-        output
-      );
+        output;
+
+      imageLog("processor output completed", {
+        processorId: processor.id,
+        elapsedMs: elapsedMs(processorStartedAt),
+        output: summarizeOutput(processedOutput),
+      });
+
+      return processedOutput;
     },
   };
 };

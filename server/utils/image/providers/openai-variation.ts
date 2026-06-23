@@ -10,6 +10,13 @@ import {
   type OpenAIImageClient,
 } from "./openai-client.ts";
 import { OpenAIClientError } from "../../openai-image/errors.ts";
+import {
+  elapsedMs,
+  imageError,
+  imageLog,
+  nowMs,
+  summarizeError,
+} from "../logger.ts";
 import type { OpenAIVariationProviderConfig } from "../provider-config.ts";
 import type { ImageInput, ImageOutput, ImageProvider } from "../types.ts";
 
@@ -23,11 +30,36 @@ export const createOpenAIImageVariationProvider = (
   actionSupports: ["variation"],
   processorId: config.processor,
   invoke: async (input) => {
-    const response = await client.images.createVariation(
-      await toImageVariationParams(input),
-    );
+    const startedAt = nowMs();
 
-    return imagesResponseToImageOutput(response, input);
+    try {
+      imageLog("openai variation request", {
+        providerId: config.id,
+        baseURL: config.baseURL,
+        model: input.model,
+        size: input.size,
+        imageCount: input.images?.length ?? 0,
+      });
+      const response = await client.images.createVariation(
+        await toImageVariationParams(input),
+      );
+      const output = imagesResponseToImageOutput(response, input);
+
+      imageLog("openai variation response", {
+        providerId: config.id,
+        elapsedMs: elapsedMs(startedAt),
+        imageCount: output.images.length,
+      });
+
+      return output;
+    } catch (error) {
+      imageError("openai variation failed", {
+        providerId: config.id,
+        elapsedMs: elapsedMs(startedAt),
+        error: summarizeError(error),
+      });
+      throw error;
+    }
   },
 });
 

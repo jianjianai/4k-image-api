@@ -11,6 +11,7 @@ describe("OpenAI image routes", () => {
   beforeAll(async () => {
     server = await startViteTestServer({
       NITRO_API_KEYS: "",
+      NITRO_IMAGE_CONFIG_FILE: "",
     });
   });
 
@@ -185,6 +186,7 @@ describe("OpenAI image route API key protection", () => {
   beforeAll(async () => {
     server = await startViteTestServer({
       NITRO_API_KEYS: "client-key",
+      NITRO_IMAGE_CONFIG_FILE: "",
     });
   });
 

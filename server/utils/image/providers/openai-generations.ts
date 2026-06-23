@@ -20,6 +20,13 @@ import {
   type OpenAIImageClient,
 } from "./openai-client.ts";
 import { OpenAIClientError } from "../../openai-image/errors.ts";
+import {
+  elapsedMs,
+  imageError,
+  imageLog,
+  nowMs,
+  summarizeError,
+} from "../logger.ts";
 import type { OpenAIImagesProviderConfig } from "../provider-config.ts";
 import type { ImageInput, ImageOutput, ImageProvider } from "../types.ts";
 
@@ -33,13 +40,53 @@ export const createOpenAIImageGenerationProvider = (
   actionSupports: ["generate", "edit"],
   processorId: config.processor,
   invoke: async (input) => {
-    if (input.action === "edit") {
-      const response = await client.images.edit(await toImageEditParams(input));
-      return imagesResponseToImageOutput(response, input);
-    }
+    const startedAt = nowMs();
 
-    const response = await client.images.generate(toImageGenerateParams(input));
-    return imagesResponseToImageOutput(response, input);
+    try {
+      imageLog("openai images request", {
+        providerId: config.id,
+        action: input.action,
+        baseURL: config.baseURL,
+        model: input.model,
+        size: input.size,
+        imageCount: input.images?.length ?? 0,
+        hasMask: Boolean(input.mask),
+      });
+
+      if (input.action === "edit") {
+        const response = await client.images.edit(await toImageEditParams(input));
+        const output = imagesResponseToImageOutput(response, input);
+
+        imageLog("openai images response", {
+          providerId: config.id,
+          action: input.action,
+          elapsedMs: elapsedMs(startedAt),
+          imageCount: output.images.length,
+        });
+
+        return output;
+      }
+
+      const response = await client.images.generate(toImageGenerateParams(input));
+      const output = imagesResponseToImageOutput(response, input);
+
+      imageLog("openai images response", {
+        providerId: config.id,
+        action: input.action,
+        elapsedMs: elapsedMs(startedAt),
+        imageCount: output.images.length,
+      });
+
+      return output;
+    } catch (error) {
+      imageError("openai images failed", {
+        providerId: config.id,
+        action: input.action,
+        elapsedMs: elapsedMs(startedAt),
+        error: summarizeError(error),
+      });
+      throw error;
+    }
   },
 });
 

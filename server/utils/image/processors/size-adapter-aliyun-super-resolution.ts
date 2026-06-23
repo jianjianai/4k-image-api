@@ -3,6 +3,14 @@ import AliyunImageEnhancement, {
   MakeSuperResolutionImageAdvanceRequest,
 } from "@alicloud/imageenhan20190930";
 import { OpenAIClientError } from "../../openai-image/errors.ts";
+import {
+  elapsedMs,
+  imageError,
+  imageLog,
+  nowMs,
+  summarizeError,
+  summarizeURL,
+} from "../logger.ts";
 import type { AliyunSuperResolutionSizeAdapterConfig } from "../provider-config.ts";
 import type { ImageInput, ImageMimeType, ImageProcessor } from "../types.ts";
 import {
@@ -39,6 +47,10 @@ export const createAliyunSuperResolutionSizeAdapter = (
     const state = getSizeAdapterState(input);
 
     if (!state) {
+      imageLog("aliyun size adapter skipped", {
+        processorId: config.id,
+        reason: "input size within max size or missing size",
+      });
       return output;
     }
 
@@ -84,6 +96,16 @@ const adaptAliyunInputSize = (
     maxPixels: config.maxPixels,
   };
   const plan = chooseUpscalePlan(requestedSize, maxSize, config);
+
+  imageLog("aliyun size adapter planned", {
+    processorId: config.id,
+    originalSize: input.size,
+    adaptedSize: formatImageSize(plan.adaptedSize),
+    scale: plan.scale,
+    maxWidth: config.maxWidth,
+    maxHeight: config.maxHeight,
+    maxPixels: config.maxPixels,
+  });
 
   return withSizeAdapterState(input, {
     originalSize: input.size!,
@@ -157,21 +179,50 @@ const upscaleImage = async (
   bytes: Uint8Array;
   mimeType: ImageMimeType;
 }> => {
+  const startedAt = nowMs();
   const client = createAliyunClient(config);
-  const response = await client.makeSuperResolutionImageAdvance(
-    new MakeSuperResolutionImageAdvanceRequest({
+  let imageURL: string | undefined;
+
+  try {
+    imageLog("aliyun super resolution request", {
+      processorId: config.id,
+      regionId: config.regionId ?? defaultRegionId,
+      endpoint: config.endpoint,
+      scale: request.scale,
       mode: config.mode,
       outputFormat: config.outputFormat,
       outputQuality: config.outputQuality,
-      upscaleFactor: request.scale,
-      urlObject: Readable.from(Buffer.from(bytes)),
-    }),
-    {
-      connectTimeout: config.timeoutMs,
-      readTimeout: config.timeoutMs,
-    },
-  );
-  const imageURL = response.body?.data?.url;
+      inputBytes: bytes.byteLength,
+      inputMimeType: mimeType,
+    });
+    const response = await client.makeSuperResolutionImageAdvance(
+      new MakeSuperResolutionImageAdvanceRequest({
+        mode: config.mode,
+        outputFormat: config.outputFormat,
+        outputQuality: config.outputQuality,
+        upscaleFactor: request.scale,
+        urlObject: Readable.from(Buffer.from(bytes)),
+      }),
+      {
+        connectTimeout: config.timeoutMs,
+        readTimeout: config.timeoutMs,
+      },
+    );
+    imageURL = response.body?.data?.url;
+
+    imageLog("aliyun super resolution response", {
+      processorId: config.id,
+      elapsedMs: elapsedMs(startedAt),
+      outputURL: summarizeURL(imageURL),
+    });
+  } catch (error) {
+    imageError("aliyun super resolution failed", {
+      processorId: config.id,
+      elapsedMs: elapsedMs(startedAt),
+      error: summarizeError(error),
+    });
+    throw error;
+  }
 
   if (!imageURL) {
     throw new OpenAIClientError(
@@ -214,9 +265,19 @@ const downloadImage = async (
   bytes: Uint8Array;
   mimeType: ImageMimeType;
 }> => {
+  const startedAt = nowMs();
+
+  imageLog("aliyun output download request", {
+    url: summarizeURL(url),
+  });
   const response = await fetch(url);
 
   if (!response.ok) {
+    imageError("aliyun output download failed", {
+      url: summarizeURL(url),
+      status: response.status,
+      elapsedMs: elapsedMs(startedAt),
+    });
     throw new OpenAIClientError(
       `Aliyun size adapter output download failed with status ${response.status}.`,
       {
@@ -226,9 +287,23 @@ const downloadImage = async (
     );
   }
 
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const mimeType = normalizeMimeType(
+    response.headers.get("content-type"),
+    fallbackMimeType,
+  );
+
+  imageLog("aliyun output download response", {
+    url: summarizeURL(url),
+    status: response.status,
+    elapsedMs: elapsedMs(startedAt),
+    bytes: bytes.byteLength,
+    mimeType,
+  });
+
   return {
-    bytes: new Uint8Array(await response.arrayBuffer()),
-    mimeType: normalizeMimeType(response.headers.get("content-type"), fallbackMimeType),
+    bytes,
+    mimeType,
   };
 };
 

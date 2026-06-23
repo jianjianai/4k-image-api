@@ -8,6 +8,14 @@ import { assertOpenAIAPIKey } from "./auth.ts";
 import { getOpenAICorsHeaders } from "./cors.ts";
 import { OpenAIClientError, toOpenAIErrorResponse } from "./errors.ts";
 import { readOpenAIRequest } from "./request.ts";
+import {
+  elapsedMs,
+  imageError,
+  imageLog,
+  nowMs,
+  summarizeError,
+  summarizeInput,
+} from "../image/logger.ts";
 import type { OpenAIImageParser, OpenAIImageResponder } from "./types.ts";
 
 export const defineOpenAIImageHandler = (
@@ -15,16 +23,32 @@ export const defineOpenAIImageHandler = (
   formatResponse: OpenAIImageResponder,
 ) =>
   defineHandler(async (event) => {
+    const startedAt = nowMs();
+
     try {
+      imageLog("request received", {
+        method: event.req.method,
+        url: event.req.url,
+        contentType: event.req.headers.get("content-type"),
+      });
       assertOpenAIAPIKey(event.req);
       const request = await readOpenAIRequest(event.req);
       const input = await parseRequest(request);
+      imageLog("request parsed", summarizeInput(input));
       const output = await imageProviderManager.invoke(input);
+      imageLog("request completed", {
+        elapsedMs: elapsedMs(startedAt),
+        imageCount: output.images.length,
+      });
 
       return Response.json(formatResponse(output, input), {
         headers: getOpenAICorsHeaders(event.req),
       });
     } catch (error) {
+      imageError("request failed", {
+        elapsedMs: elapsedMs(startedAt),
+        error: summarizeError(error),
+      });
       return toOpenAIErrorResponse(normalizeOpenAIError(error), event.req);
     }
   });

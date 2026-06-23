@@ -17,6 +17,13 @@ import {
   type OpenAIImageClient,
 } from "./openai-client.ts";
 import { OpenAIClientError } from "../../openai-image/errors.ts";
+import {
+  elapsedMs,
+  imageError,
+  imageLog,
+  nowMs,
+  summarizeError,
+} from "../logger.ts";
 import type { OpenAIResponsesProviderConfig } from "../provider-config.ts";
 import type { ImageInput, ImageOutput, ImageProvider } from "../types.ts";
 
@@ -30,9 +37,37 @@ export const createOpenAIResponsesImageProvider = (
   actionSupports: ["generate", "edit"],
   processorId: config.processor,
   invoke: async (input) => {
-    const response = await client.responses.create(toResponseCreateParams(input));
+    const startedAt = nowMs();
 
-    return responsesResponseToImageOutput(response, input);
+    try {
+      imageLog("openai responses request", {
+        providerId: config.id,
+        baseURL: config.baseURL,
+        action: input.action,
+        model: input.model,
+        size: input.size,
+        imageCount: input.images?.length ?? 0,
+        hasMask: Boolean(input.mask),
+      });
+
+      const response = await client.responses.create(toResponseCreateParams(input));
+      const output = responsesResponseToImageOutput(response, input);
+
+      imageLog("openai responses response", {
+        providerId: config.id,
+        elapsedMs: elapsedMs(startedAt),
+        imageCount: output.images.length,
+      });
+
+      return output;
+    } catch (error) {
+      imageError("openai responses failed", {
+        providerId: config.id,
+        elapsedMs: elapsedMs(startedAt),
+        error: summarizeError(error),
+      });
+      throw error;
+    }
   },
 });
 
