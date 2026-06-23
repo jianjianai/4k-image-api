@@ -47,7 +47,6 @@ export type ModelslabRealEsrganSizeAdapterConfig = {
   apiKey: string;
   modelId?: ModelslabRealEsrganModelId;
   modelByScale?: Partial<Record<"2" | "3" | "4", ModelslabRealEsrganModelId>>;
-  scale?: number;
   faceEnhance?: boolean;
   baseURL?: string;
 };
@@ -63,7 +62,6 @@ export type AliyunSuperResolutionSizeAdapterConfig = {
   accessKeySecret: string;
   regionId?: string;
   endpoint?: string;
-  scale?: 1 | 2 | 3 | 4;
   mode?: string;
   outputFormat?: "png" | "jpg" | "bmp";
   outputQuality?: number;
@@ -306,7 +304,6 @@ const parseModelslabRealEsrganSizeAdapterConfig = (
   apiKey: getRequiredString(value.apiKey, "apiKey"),
   modelId: getOptionalModelslabModelId(value.modelId, "modelId"),
   modelByScale: getOptionalModelslabModelByScale(value.modelByScale, "modelByScale"),
-  scale: getOptionalNumber(value.scale, "scale"),
   faceEnhance: getOptionalBoolean(value.faceEnhance, "faceEnhance"),
   baseURL: getOptionalString(value.baseURL, "baseURL"),
 });
@@ -324,7 +321,6 @@ const parseAliyunSuperResolutionSizeAdapterConfig = (
   accessKeySecret: getRequiredString(value.accessKeySecret, "accessKeySecret"),
   regionId: getOptionalString(value.regionId, "regionId"),
   endpoint: getOptionalString(value.endpoint, "endpoint"),
-  scale: getOptionalAliyunSuperResolutionScale(value.scale, "scale"),
   mode: getOptionalString(value.mode, "mode"),
   outputFormat: getOptionalAliyunSuperResolutionOutputFormat(
     value.outputFormat,
@@ -393,21 +389,6 @@ const getRequiredNumber = (value: unknown, name: string): number => {
   }
 
   throw new Error(`Image processor config '${name}' must be a finite number.`);
-};
-
-const getOptionalAliyunSuperResolutionScale = (
-  value: unknown,
-  name: string,
-): 1 | 2 | 3 | 4 | undefined => {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value === 1 || value === 2 || value === 3 || value === 4) {
-    return value;
-  }
-
-  throw new Error(`Image processor config '${name}' must be 1, 2, 3, or 4.`);
 };
 
 const getOptionalAliyunSuperResolutionOutputFormat = (

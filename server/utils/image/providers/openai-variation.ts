@@ -67,12 +67,13 @@ const toImageVariationParams = async (
   input: ImageInput,
 ): Promise<ImageCreateVariationParams> => {
   const [image] = await Promise.all((input.images ?? []).map(imageAssetToFile));
+  const size = normalizeVariationSize(input.size);
 
   return {
     image,
     model: input.model,
     n: input.n,
-    size: normalizeVariationSize(input.size),
+    size,
     response_format: input.responseFormat,
     user: normalizeString(input.options?.user),
   };
@@ -81,11 +82,20 @@ const toImageVariationParams = async (
 const normalizeVariationSize = (
   value: unknown,
 ): "256x256" | "512x512" | "1024x1024" | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
   if (value === "256x256" || value === "512x512" || value === "1024x1024") {
     return value;
   }
 
-  return undefined;
+  throw new OpenAIClientError(
+    "OpenAI image variation size must be '256x256', '512x512', or '1024x1024'.",
+    {
+      param: "size",
+    },
+  );
 };
 
 const imagesResponseToImageOutput = (

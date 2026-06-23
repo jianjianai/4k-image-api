@@ -111,14 +111,14 @@ const adaptModelslabInputSize = (
     height: config.maxHeight,
     maxPixels: config.maxPixels,
   };
-  const plan = chooseUpscalePlan(requestedSize, maxSize, config);
+  const adaptedSize = fitWithin(requestedSize, maxSize);
+  const plannedScale = getOutputScale(adaptedSize, requestedSize);
 
   imageLog("modelslab size adapter planned", {
     processorId: config.id,
     originalSize: input.size,
-    adaptedSize: formatImageSize(plan.adaptedSize),
-    scale: plan.scale,
-    modelId: getModelIdForScale(plan.scale, config),
+    adaptedSize: formatImageSize(adaptedSize),
+    modelId: getModelIdForScale(plannedScale, config),
     maxWidth: config.maxWidth,
     maxHeight: config.maxHeight,
     maxPixels: config.maxPixels,
@@ -126,29 +126,14 @@ const adaptModelslabInputSize = (
 
   return withSizeAdapterState(input, {
     originalSize: input.size!,
-    adaptedSize: formatImageSize(plan.adaptedSize),
+    adaptedSize: formatImageSize(adaptedSize),
     target: requestedSize,
-    scale: plan.scale,
-    modelId: getModelIdForScale(plan.scale, config),
+    modelId: getModelIdForScale(plannedScale, config),
   });
 };
 
 const getOutputTarget = (input: ImageInput): { width: number; height: number } | undefined =>
   getSizeAdapterState(input)?.target ?? parseImageSize(input.size);
-
-const chooseUpscalePlan = (
-  size: { width: number; height: number },
-  maxSize: { width: number; height: number; maxPixels?: number },
-  config: ModelslabRealEsrganSizeAdapterConfig,
-): {
-  scale: number;
-  adaptedSize: { width: number; height: number };
-} => {
-  const adaptedSize = fitWithin(size, maxSize);
-  const scale = config.scale ?? chooseScaleForSize(adaptedSize, size, 2);
-
-  return { scale: Math.min(4, Math.max(2, scale)), adaptedSize };
-};
 
 const getModelIdForScale = (
   scale: number,
@@ -191,7 +176,7 @@ const prepareModelslabRequest = async (
     return undefined;
   }
 
-  const scale = getOutputScale(actualSize, target, config);
+  const scale = getOutputScale(actualSize, target);
 
   return {
     modelId: config.modelId ?? getModelIdForScale(scale, config),
@@ -222,15 +207,8 @@ const getImageSize = async (
 const getOutputScale = (
   actualSize: { width: number; height: number },
   target: { width: number; height: number },
-  config: ModelslabRealEsrganSizeAdapterConfig,
 ): number => {
-  if (config.scale !== undefined) {
-    return config.scale;
-  }
-
-  const scale = chooseScaleForSize(actualSize, target, 2);
-
-  return Math.min(4, Math.max(2, scale));
+  return Math.min(4, Math.max(2, chooseScaleForSize(actualSize, target, 2)));
 };
 
 const chooseScaleForSize = (

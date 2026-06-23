@@ -115,7 +115,7 @@ const adaptAliyunInputSize = (
   config: AliyunSuperResolutionSizeAdapterConfig,
 ): ImageInput => {
   const requestedSize = parseImageSize(input.size);
-  const maxSize = getConfiguredAliyunInputMaxSize(config);
+  const maxSize = getConfiguredGenerationMaxSize(config);
 
   if (
     !requestedSize ||
@@ -124,13 +124,12 @@ const adaptAliyunInputSize = (
     return input;
   }
 
-  const plan = chooseUpscalePlan(requestedSize, maxSize, config);
+  const adaptedSize = fitWithin(requestedSize, maxSize);
 
   imageLog("aliyun size adapter planned", {
     processorId: config.id,
     originalSize: input.size,
-    adaptedSize: formatImageSize(plan.adaptedSize),
-    scale: plan.scale,
+    adaptedSize: formatImageSize(adaptedSize),
     maxWidth: maxSize.width,
     maxHeight: maxSize.height,
     maxPixels: maxSize.maxPixels,
@@ -138,28 +137,13 @@ const adaptAliyunInputSize = (
 
   return withSizeAdapterState(input, {
     originalSize: input.size!,
-    adaptedSize: formatImageSize(plan.adaptedSize),
+    adaptedSize: formatImageSize(adaptedSize),
     target: requestedSize,
-    scale: plan.scale,
   });
 };
 
 const getOutputTarget = (input: ImageInput): { width: number; height: number } | undefined =>
   getSizeAdapterState(input)?.target ?? parseImageSize(input.size);
-
-const chooseUpscalePlan = (
-  size: { width: number; height: number },
-  maxSize: { width: number; height: number; maxPixels?: number },
-  config: AliyunSuperResolutionSizeAdapterConfig,
-): {
-  scale: number;
-  adaptedSize: { width: number; height: number };
-} => {
-  const adaptedSize = fitWithin(size, maxSize);
-  const scale = config.scale ?? Math.min(4, chooseScaleForSize(adaptedSize, size, 1));
-
-  return { scale, adaptedSize };
-};
 
 const prepareAliyunInputImage = async (
   bytes: Uint8Array,
@@ -186,13 +170,13 @@ const prepareAliyunInputImage = async (
     return {
       bytes,
       mimeType,
-      scale: getOutputScale(actualSize, target, config),
+      scale: getOutputScale(actualSize, target),
     };
   }
 
   const resized = await resizeImageWithin(bytes, mimeType, actualSize, maxSize);
   const resizedSize = await getImageSize(resized.bytes);
-  const scale = getOutputScale(resizedSize, target, config);
+  const scale = getOutputScale(resizedSize, target);
 
   imageLog("aliyun output image resized", {
     processorId: config.id,
@@ -213,19 +197,12 @@ const prepareAliyunInputImage = async (
 const getOutputScale = (
   actualSize: { width: number; height: number },
   target: { width: number; height: number },
-  config: AliyunSuperResolutionSizeAdapterConfig,
 ): number => {
   if (satisfiesTarget(actualSize, target)) {
     return 1;
   }
 
-  if (config.scale !== undefined) {
-    return config.scale;
-  }
-
-  const scale = chooseScaleForSize(actualSize, target, 1);
-
-  return Math.min(4, Math.max(1, scale));
+  return Math.min(4, Math.max(1, chooseScaleForSize(actualSize, target, 1)));
 };
 
 const chooseScaleForSize = (
@@ -265,6 +242,14 @@ const getImageSize = async (
 
   throw new OpenAIClientError("Aliyun size adapter could not read image dimensions.");
 };
+
+const getConfiguredGenerationMaxSize = (
+  config: AliyunSuperResolutionSizeAdapterConfig,
+): { width: number; height: number; maxPixels?: number } => ({
+  width: config.maxWidth,
+  height: config.maxHeight,
+  maxPixels: config.maxPixels,
+});
 
 const getConfiguredAliyunInputMaxSize = (
   config: AliyunSuperResolutionSizeAdapterConfig,

@@ -58,6 +58,28 @@ describe("createOpenAIImageVariationProvider", () => {
       totalTokens: 3,
     });
   });
+
+  it("rejects unsupported sizes before invoking SDK image variation", async () => {
+    const createVariation = vi.fn();
+    const provider = createOpenAIImageVariationProvider(config(), {
+      images: {
+        createVariation,
+        edit: vi.fn(),
+        generate: vi.fn(),
+      },
+      responses: { create: vi.fn() },
+    } as never);
+
+    await expect(
+      provider.invoke({
+        ...baseInput(),
+        images: [imageAsset("source.png")],
+        size: "2048x2048",
+      }),
+    ).rejects.toThrow("OpenAI image variation size must be");
+
+    expect(createVariation).not.toHaveBeenCalled();
+  });
 });
 
 const config = () => ({

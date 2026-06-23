@@ -12,7 +12,6 @@ export type SizeAdapterState = {
   originalSize: string;
   adaptedSize: string;
   target: ImageSize;
-  scale?: number;
   modelId?: string;
 };
 
@@ -73,10 +72,6 @@ export const getSizeAdapterState = (
         height: target.height,
       },
     };
-
-    if (typeof value.scale === "number" && Number.isFinite(value.scale)) {
-      state.scale = value.scale;
-    }
 
     if (typeof value.modelId === "string") {
       state.modelId = value.modelId;

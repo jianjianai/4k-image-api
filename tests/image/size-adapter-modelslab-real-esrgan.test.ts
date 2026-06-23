@@ -79,7 +79,6 @@ describe("createModelslabRealEsrganSizeAdapter", () => {
       maxHeight: 1920,
       maxPixels: 2073600,
       modelId: undefined,
-      scale: undefined,
     });
     const input = await processor.processInput?.(imageInput("2480x3328"), context());
 
@@ -111,7 +110,6 @@ describe("createModelslabRealEsrganSizeAdapter", () => {
       maxHeight: 900,
       maxPixels: undefined,
       modelId: undefined,
-      scale: undefined,
     });
     const input = await processor.processInput?.(imageInput("2400x3200"), context());
 
@@ -146,7 +144,6 @@ describe("createModelslabRealEsrganSizeAdapter", () => {
       modelByScale: {
         "4": "ultra_resolution",
       },
-      scale: undefined,
     });
     const input = await processor.processInput?.(imageInput("2400x3200"), context());
 
@@ -174,7 +171,6 @@ describe("createModelslabRealEsrganSizeAdapter", () => {
     vi.stubGlobal("fetch", fetch);
     const processor = createProcessor({
       modelId: undefined,
-      scale: undefined,
     });
     const input = await processor.processInput?.(imageInput("2880x2880"), context());
 
@@ -200,7 +196,6 @@ describe("createModelslabRealEsrganSizeAdapter", () => {
     vi.stubGlobal("fetch", fetch);
     const processor = createProcessor({
       modelId: undefined,
-      scale: undefined,
     });
     const input = await processor.processInput?.(imageInput("2880x2880"), context());
     const image = imageOutput(await createPng(720, 720));
@@ -215,7 +210,6 @@ describe("createModelslabRealEsrganSizeAdapter", () => {
   it("adapts uneven sizes instead of rejecting after exact-scale planning fails", async () => {
     const processor = createProcessor({
       modelId: undefined,
-      scale: undefined,
     });
     const input = await processor.processInput?.(imageInput("2049x1024"), context());
 
@@ -234,7 +228,6 @@ const createProcessor = (
     maxPixels: 1048576,
     apiKey: "key-test",
     modelId: "RealESRGAN_x2plus",
-    scale: 2,
     faceEnhance: true,
     baseURL: "https://example.test/super_resolution",
     ...overrides,

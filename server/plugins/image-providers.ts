@@ -60,7 +60,6 @@ export default definePlugin(() => {
         maxPixels: processorConfig.maxPixels,
         regionId: processorConfig.regionId,
         endpoint: processorConfig.endpoint,
-        scale: processorConfig.scale,
       });
       continue;
     }
@@ -73,7 +72,6 @@ export default definePlugin(() => {
         maxWidth: processorConfig.maxWidth,
         maxHeight: processorConfig.maxHeight,
         maxPixels: processorConfig.maxPixels,
-        scale: processorConfig.scale,
       });
     }
   }

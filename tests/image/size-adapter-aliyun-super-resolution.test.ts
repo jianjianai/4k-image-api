@@ -134,7 +134,6 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
       maxWidth: 1920,
       maxHeight: 1920,
       maxPixels: 2073600,
-      scale: undefined,
     });
     const input = await processor.processInput?.(imageInput("2480x3328"), context());
 
@@ -144,13 +143,24 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
       context(),
     );
 
-    expect(input?.size).toBe("804x1080");
+    expect(input?.size).toBe("1243x1668");
     expect(mocks.makeSuperResolutionImageAdvance).toHaveBeenCalledWith(
       expect.objectContaining({
         upscaleFactor: 4,
       }),
       expect.any(Object),
     );
+  });
+
+  it("maximizes provider input size without applying Aliyun upload limits", async () => {
+    const processor = createProcessor({
+      maxWidth: 1920,
+      maxHeight: 1920,
+      maxPixels: 2073600,
+    });
+    const input = await processor.processInput?.(imageInput("2480x3328"), context());
+
+    expect(input?.size).toBe("1243x1668");
   });
 
   it("uses 4x only when cheaper scales cannot fit within max size", async () => {
@@ -169,7 +179,6 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
       maxWidth: 600,
       maxHeight: 900,
       maxPixels: undefined,
-      scale: undefined,
     });
     const input = await processor.processInput?.(imageInput("2400x3200"), context());
 
@@ -200,9 +209,7 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
       "fetch",
       vi.fn().mockResolvedValueOnce(new Response(new Uint8Array([9, 8, 7]))),
     );
-    const processor = createProcessor({
-      scale: undefined,
-    });
+    const processor = createProcessor();
     const input = await processor.processInput?.(imageInput("2880x2880"), context());
     const source = await sharp({
       create: {
@@ -246,9 +253,7 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
       "fetch",
       vi.fn().mockResolvedValueOnce(new Response(new Uint8Array([9, 8, 7]))),
     );
-    const processor = createProcessor({
-      scale: undefined,
-    });
+    const processor = createProcessor();
     const input = await processor.processInput?.(imageInput("2880x2880"), context());
     const source = await sharp({
       create: {
@@ -289,9 +294,7 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
       "fetch",
       vi.fn().mockResolvedValueOnce(new Response(new Uint8Array([9, 8, 7]))),
     );
-    const processor = createProcessor({
-      scale: undefined,
-    });
+    const processor = createProcessor();
     const input = await processor.processInput?.(imageInput("2880x2880"), context());
 
     await processor.processOutput?.(
@@ -320,9 +323,7 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
       "fetch",
       vi.fn().mockResolvedValueOnce(new Response(new Uint8Array([9, 8, 7]))),
     );
-    const processor = createProcessor({
-      scale: undefined,
-    });
+    const processor = createProcessor();
     const input = await processor.processInput?.(imageInput("3840x2160"), context());
 
     await processor.processOutput?.(
@@ -347,9 +348,7 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
   it("does not process oversized actual output when it already satisfies the target", async () => {
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);
-    const processor = createProcessor({
-      scale: undefined,
-    });
+    const processor = createProcessor();
     const input = await processor.processInput?.(imageInput("3840x2160"), context());
     const image = imageOutput(await createPng(3840, 2160));
 
@@ -366,9 +365,7 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
       new Error("upstream unavailable"),
     );
     vi.stubGlobal("fetch", vi.fn());
-    const processor = createProcessor({
-      scale: undefined,
-    });
+    const processor = createProcessor();
     const input = await processor.processInput?.(imageInput("2880x2880"), context());
     const image = imageOutput(await createPng(960, 960));
 
@@ -380,9 +377,7 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
   });
 
   it("adapts uneven sizes instead of rejecting after exact-scale planning fails", async () => {
-    const processor = createProcessor({
-      scale: undefined,
-    });
+    const processor = createProcessor();
     const input = await processor.processInput?.(imageInput("2049x1024"), context());
 
     expect(input?.size).toBe("1024x511");
@@ -402,7 +397,6 @@ const createProcessor = (
     accessKeySecret: "access-key-secret-test",
     regionId: "cn-shanghai",
     endpoint: "imageenhan.cn-shanghai.aliyuncs.com",
-    scale: 2,
     mode: "base",
     outputFormat: "png",
     outputQuality: 95,

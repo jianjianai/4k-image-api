@@ -37,7 +37,6 @@
       "accessKeyId": "aliyun-your-access-key-id",
       "accessKeySecret": "aliyun-your-access-key-secret",
       "regionId": "cn-shanghai",
-      "scale": 4,
       "mode": "base",
       "outputFormat": "png",
       "outputQuality": 95,
