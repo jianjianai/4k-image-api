@@ -76,6 +76,16 @@ describe("createLocalSharpLanczos3SizeAdapter", () => {
     expect(metadata.height).toBe(1024);
   });
 
+  it("returns the generated image when local resizing fails after generation", async () => {
+    const processor = createProcessor();
+    const input = imageInput("1024x512");
+    const image = imageOutput(new Uint8Array([1, 2, 3]));
+
+    const output = await processor.processOutput?.(image, input, context());
+
+    expect(output).toBe(image);
+  });
+
   it("respects maxPixels for square requests", async () => {
     const processor = createProcessor({
       maxWidth: 1920,

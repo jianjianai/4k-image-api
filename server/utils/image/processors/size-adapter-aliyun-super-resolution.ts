@@ -16,6 +16,8 @@ import {
 import type { AliyunSuperResolutionSizeAdapterConfig } from "../provider-config.ts";
 import type { ImageInput, ImageMimeType, ImageProcessor } from "../types.ts";
 import {
+  fitWithin,
+  fitsWithin,
   formatImageSize,
   getSizeAdapterState,
   parseImageSize,
@@ -23,7 +25,6 @@ import {
 } from "./size-adapter.ts";
 
 const defaultRegionId = "cn-shanghai";
-const defaultScales = [1, 2, 3, 4] as const;
 const aliyunMaxInputSize = {
   width: 1920,
   height: 1080,
@@ -51,54 +52,60 @@ export const createAliyunSuperResolutionSizeAdapter = (
   type: config.type,
   processInput: (input) => adaptAliyunInputSize(input, config),
   processOutput: async (output, input) => {
-    const state = getSizeAdapterState(input);
+    const target = getOutputTarget(input);
 
-    if (!state) {
+    if (!target) {
       imageLog("aliyun size adapter skipped", {
         processorId: config.id,
-        reason: "input size within max size or missing size",
+        reason: "missing target size",
       });
+      return output;
+    }
+
+    const images = await Promise.all(
+      output.images.map(async (image) => {
+        try {
+          const inputImage = await prepareAliyunInputImage(
+            image.bytes,
+            image.mimeType,
+            target,
+            config,
+          );
+
+          if (inputImage.scale <= 1) {
+            return image;
+          }
+
+          const result = await upscaleImage(
+            inputImage.bytes,
+            inputImage.mimeType,
+            config,
+            { scale: inputImage.scale },
+          );
+
+          return {
+            ...image,
+            bytes: result.bytes,
+            mimeType: result.mimeType,
+          };
+        } catch (error) {
+          imageWarn("aliyun size adapter returned original image", {
+            processorId: config.id,
+            reason: "post-generation processing failed",
+            error: summarizeError(error),
+          });
+          return image;
+        }
+      }),
+    );
+
+    if (images.every((image, index) => image === output.images[index])) {
       return output;
     }
 
     return {
       ...output,
-      images: await Promise.all(
-        output.images.map(async (image) => {
-          try {
-            const inputImage = await prepareAliyunInputImage(
-              image.bytes,
-              image.mimeType,
-              state,
-              config,
-            );
-
-            if (inputImage.scale <= 1) {
-              return image;
-            }
-
-            const result = await upscaleImage(
-              inputImage.bytes,
-              inputImage.mimeType,
-              config,
-              { scale: inputImage.scale },
-            );
-
-            return {
-              ...image,
-              bytes: result.bytes,
-              mimeType: result.mimeType,
-            };
-          } catch (error) {
-            imageWarn("aliyun size adapter returned original image", {
-              processorId: config.id,
-              reason: "post-generation processing failed",
-              error: summarizeError(error),
-            });
-            return image;
-          }
-        }),
-      ),
+      images,
     };
   },
 });
@@ -137,6 +144,9 @@ const adaptAliyunInputSize = (
   });
 };
 
+const getOutputTarget = (input: ImageInput): { width: number; height: number } | undefined =>
+  getSizeAdapterState(input)?.target ?? parseImageSize(input.size);
+
 const chooseUpscalePlan = (
   size: { width: number; height: number },
   maxSize: { width: number; height: number; maxPixels?: number },
@@ -145,57 +155,16 @@ const chooseUpscalePlan = (
   scale: number;
   adaptedSize: { width: number; height: number };
 } => {
-  const scales = config.scale === undefined ? defaultScales : [config.scale];
+  const adaptedSize = fitWithin(size, maxSize);
+  const scale = config.scale ?? Math.min(4, chooseScaleForSize(adaptedSize, size, 1));
 
-  for (const scale of scales) {
-    const adaptedSize = getExactScaledSize(size, scale);
-
-    if (adaptedSize && fitsWithin(adaptedSize, maxSize)) {
-      return { scale, adaptedSize };
-    }
-  }
-
-  throw new OpenAIClientError(
-    `Requested image size '${formatImageSize(size)}' cannot be produced by Aliyun size adapter without a final resize. Use a size divisible by ${scales.join(", ")} and within configured max size after scaling.`,
-    {
-      code: "invalid_request",
-      param: "size",
-    },
-  );
+  return { scale, adaptedSize };
 };
-
-const getExactScaledSize = (
-  size: { width: number; height: number },
-  scale: number,
-): { width: number; height: number } | undefined => {
-  if (
-    !Number.isInteger(scale) ||
-    scale < 1 ||
-    size.width % scale !== 0 ||
-    size.height % scale !== 0
-  ) {
-    return undefined;
-  }
-
-  return {
-    width: size.width / scale,
-    height: size.height / scale,
-  };
-};
-
-const fitsWithin = (
-  size: { width: number; height: number },
-  maxSize: { width: number; height: number; maxPixels?: number },
-): boolean =>
-  size.width <= maxSize.width &&
-  size.height <= maxSize.height &&
-  (maxSize.maxPixels === undefined ||
-    size.width * size.height <= maxSize.maxPixels);
 
 const prepareAliyunInputImage = async (
   bytes: Uint8Array,
   mimeType: ImageMimeType,
-  state: NonNullable<ReturnType<typeof getSizeAdapterState>>,
+  target: { width: number; height: number },
   config: AliyunSuperResolutionSizeAdapterConfig,
 ): Promise<{
   bytes: Uint8Array;
@@ -203,19 +172,24 @@ const prepareAliyunInputImage = async (
   scale: number;
 }> => {
   const actualSize = await getImageSize(bytes);
-  const scale = getOutputScale(actualSize, state, config);
-  const maxSize = getOutputAliyunInputMaxSize(state, config, scale);
+  const maxSize = getConfiguredAliyunInputMaxSize(config);
 
   if (fitsWithin(actualSize, maxSize)) {
-    return { bytes, mimeType, scale };
+    return {
+      bytes,
+      mimeType,
+      scale: getOutputScale(actualSize, target, config),
+    };
   }
 
-  const adaptedSize = fitWithin(actualSize, maxSize);
+  const resized = await resizeImageWithin(bytes, mimeType, actualSize, maxSize);
+  const resizedSize = await getImageSize(resized.bytes);
+  const scale = getOutputScale(resizedSize, target, config);
 
   imageLog("aliyun output image resized", {
     processorId: config.id,
     originalSize: formatImageSize(actualSize),
-    adaptedSize: formatImageSize(adaptedSize),
+    adaptedSize: formatImageSize(resizedSize),
     scale,
     maxWidth: maxSize.width,
     maxHeight: maxSize.height,
@@ -223,19 +197,19 @@ const prepareAliyunInputImage = async (
   });
 
   return {
-    ...(await resizeImage(bytes, mimeType, adaptedSize)),
+    ...resized,
     scale,
   };
 };
 
 const getOutputScale = (
   actualSize: { width: number; height: number },
-  state: NonNullable<ReturnType<typeof getSizeAdapterState>>,
+  target: { width: number; height: number },
   config: AliyunSuperResolutionSizeAdapterConfig,
 ): number => {
   if (
-    actualSize.width >= state.target.width &&
-    actualSize.height >= state.target.height
+    actualSize.width >= target.width &&
+    actualSize.height >= target.height
   ) {
     return 1;
   }
@@ -244,14 +218,21 @@ const getOutputScale = (
     return config.scale;
   }
 
-  const scale = Math.max(
-    state.scale ?? 1,
-    Math.ceil(state.target.width / actualSize.width),
-    Math.ceil(state.target.height / actualSize.height),
-  );
+  const scale = chooseScaleForSize(actualSize, target, 1);
 
   return Math.min(4, Math.max(1, scale));
 };
+
+const chooseScaleForSize = (
+  source: { width: number; height: number },
+  target: { width: number; height: number },
+  minScale: number,
+): number =>
+  Math.max(
+    minScale,
+    Math.ceil(target.width / source.width),
+    Math.ceil(target.height / source.height),
+  );
 
 const getImageSize = async (
   bytes: Uint8Array,
@@ -273,39 +254,12 @@ const getImageSize = async (
   throw new OpenAIClientError("Aliyun size adapter could not read image dimensions.");
 };
 
-const getOutputAliyunInputMaxSize = (
-  state: NonNullable<ReturnType<typeof getSizeAdapterState>>,
-  config: AliyunSuperResolutionSizeAdapterConfig,
-  scale: number,
-): { width: number; height: number; maxPixels?: number } => {
-  const configuredMaxSize = getConfiguredAliyunInputMaxSize(config);
-  const scaledTargetMaxSize = {
-    width: Math.max(1, Math.floor(state.target.width / scale)),
-    height: Math.max(1, Math.floor(state.target.height / scale)),
-    maxPixels: Math.max(
-      1,
-      Math.floor((state.target.width * state.target.height) / (scale * scale)),
-    ),
-  };
-
-  return minMaxSize(configuredMaxSize, scaledTargetMaxSize);
-};
-
 const getConfiguredAliyunInputMaxSize = (
   config: AliyunSuperResolutionSizeAdapterConfig,
 ): { width: number; height: number; maxPixels?: number } => ({
   width: Math.min(config.maxWidth, aliyunMaxInputSize.width),
   height: Math.min(config.maxHeight, aliyunMaxInputSize.height),
   maxPixels: minOptionalNumber(config.maxPixels, aliyunMaxInputSize.maxPixels),
-});
-
-const minMaxSize = (
-  first: { width: number; height: number; maxPixels?: number },
-  second: { width: number; height: number; maxPixels?: number },
-): { width: number; height: number; maxPixels?: number } => ({
-  width: Math.min(first.width, second.width),
-  height: Math.min(first.height, second.height),
-  maxPixels: minOptionalNumber(first.maxPixels, second.maxPixels),
 });
 
 const minOptionalNumber = (
@@ -320,39 +274,67 @@ const minOptionalNumber = (
   return Math.min(...numbers);
 };
 
-const fitWithin = (
-  size: { width: number; height: number },
+const resizeImageWithin = async (
+  bytes: Uint8Array,
+  mimeType: ImageMimeType,
+  actualSize: { width: number; height: number },
   maxSize: { width: number; height: number; maxPixels?: number },
-): { width: number; height: number } => {
+): Promise<{
+  bytes: Uint8Array;
+  mimeType: ImageMimeType;
+}> => {
+  const resize = getLargestAcceptedResizeDimension(actualSize, maxSize);
+  const resized = await resizeImage(bytes, mimeType, resize);
+  const resizedSize = await getImageSize(resized.bytes);
+
+  if (fitsWithin(resizedSize, maxSize)) {
+    return resized;
+  }
+
+  return resizeImage(bytes, mimeType, {
+    ...fitWithin(actualSize, maxSize),
+    fit: "inside",
+  });
+};
+
+const getLargestAcceptedResizeDimension = (
+  actualSize: { width: number; height: number },
+  maxSize: { width: number; height: number; maxPixels?: number },
+): { width: number } | { height: number } => {
+  const widthScale = maxSize.width / actualSize.width;
+  const heightScale = maxSize.height / actualSize.height;
   const pixelScale =
     maxSize.maxPixels === undefined
-      ? 1
-      : Math.sqrt(maxSize.maxPixels / (size.width * size.height));
-  const scale = Math.min(
-    1,
-    maxSize.width / size.width,
-    maxSize.height / size.height,
-    pixelScale,
-  );
+      ? Number.POSITIVE_INFINITY
+      : Math.sqrt(maxSize.maxPixels / (actualSize.width * actualSize.height));
+  const scale = Math.min(widthScale, heightScale, pixelScale);
+
+  if (heightScale <= widthScale && heightScale <= pixelScale) {
+    return { height: maxSize.height };
+  }
+
+  if (widthScale <= heightScale && widthScale <= pixelScale) {
+    return { width: maxSize.width };
+  }
 
   return {
-    width: Math.max(1, Math.floor(size.width * scale)),
-    height: Math.max(1, Math.floor(size.height * scale)),
+    width: Math.max(1, Math.floor(actualSize.width * scale)),
   };
 };
 
 const resizeImage = async (
   bytes: Uint8Array,
   mimeType: ImageMimeType,
-  size: { width: number; height: number },
+  resize:
+    | { width: number }
+    | { height: number }
+    | { width: number; height: number; fit: "inside" },
 ): Promise<{
   bytes: Uint8Array;
   mimeType: ImageMimeType;
 }> => {
   let pipeline = sharp(bytes).resize({
-    width: size.width,
-    height: size.height,
-    fit: "inside",
+    ...resize,
     withoutEnlargement: true,
     kernel: sharp.kernel.lanczos3,
   });

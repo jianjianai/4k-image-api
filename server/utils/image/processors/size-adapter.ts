@@ -112,13 +112,13 @@ export const parseImageSize = (value: unknown): ImageSize | undefined => {
 export const formatImageSize = ({ width, height }: ImageSize): string =>
   `${width}x${height}`;
 
-const fitsWithin = (size: ImageSize, maxSize: ImageSize): boolean =>
+export const fitsWithin = (size: ImageSize, maxSize: ImageSize): boolean =>
   size.width <= maxSize.width &&
   size.height <= maxSize.height &&
   (maxSize.maxPixels === undefined ||
     size.width * size.height <= maxSize.maxPixels);
 
-const fitWithin = (size: ImageSize, maxSize: ImageSize): ImageSize => {
+export const fitWithin = (size: ImageSize, maxSize: ImageSize): ImageSize => {
   const pixelScale =
     maxSize.maxPixels === undefined
       ? 1

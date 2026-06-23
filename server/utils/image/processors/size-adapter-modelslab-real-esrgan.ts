@@ -13,6 +13,8 @@ import {
 import type { ModelslabRealEsrganSizeAdapterConfig } from "../provider-config.ts";
 import type { ImageInput, ImageMimeType, ImageProcessor } from "../types.ts";
 import {
+  fitWithin,
+  fitsWithin,
   formatImageSize,
   getSizeAdapterState,
   parseImageSize,
@@ -22,8 +24,6 @@ import {
 const defaultBaseURL = "https://modelslab.com/api/v6/image_editing/super_resolution";
 const scale2ModelId = "RealESRGAN_x2plus";
 const generalModelId = "realesr-general-x4v3";
-const defaultScales = [2, 3, 4] as const;
-
 export const createModelslabRealEsrganSizeAdapter = (
   config: ModelslabRealEsrganSizeAdapterConfig,
 ): ImageProcessor => ({
@@ -31,54 +31,60 @@ export const createModelslabRealEsrganSizeAdapter = (
   type: config.type,
   processInput: (input) => adaptModelslabInputSize(input, config),
   processOutput: async (output, input) => {
-    const state = getSizeAdapterState(input);
+    const target = getOutputTarget(input);
 
-    if (!state) {
+    if (!target) {
       imageLog("modelslab size adapter skipped", {
         processorId: config.id,
-        reason: "input size within max size or missing size",
+        reason: "missing target size",
       });
+      return output;
+    }
+
+    const images = await Promise.all(
+      output.images.map(async (image) => {
+        try {
+          const request = await prepareModelslabRequest(
+            image.bytes,
+            image.mimeType,
+            target,
+            config,
+          );
+
+          if (!request) {
+            return image;
+          }
+
+          const result = await upscaleImage(
+            image.bytes,
+            image.mimeType,
+            config,
+            request,
+          );
+
+          return {
+            ...image,
+            bytes: result.bytes,
+            mimeType: result.mimeType,
+          };
+        } catch (error) {
+          imageWarn("modelslab size adapter returned original image", {
+            processorId: config.id,
+            reason: "post-generation processing failed",
+            error: summarizeError(error),
+          });
+          return image;
+        }
+      }),
+    );
+
+    if (images.every((image, index) => image === output.images[index])) {
       return output;
     }
 
     return {
       ...output,
-      images: await Promise.all(
-        output.images.map(async (image) => {
-          try {
-            const request = await prepareModelslabRequest(
-              image.bytes,
-              image.mimeType,
-              state,
-              config,
-            );
-
-            if (!request) {
-              return image;
-            }
-
-            const result = await upscaleImage(
-              image.bytes,
-              image.mimeType,
-              config,
-              request,
-            );
-
-            return {
-              ...image,
-              bytes: result.bytes,
-              mimeType: result.mimeType,
-            };
-          } catch (error) {
-            imageWarn("modelslab size adapter returned original image", {
-              processorId: config.id,
-              reason: "post-generation processing failed",
-              error: summarizeError(error),
-            });
-            return image;
-          }
-        }),
-      ),
+      images,
     };
   },
 });
@@ -127,6 +133,9 @@ const adaptModelslabInputSize = (
   });
 };
 
+const getOutputTarget = (input: ImageInput): { width: number; height: number } | undefined =>
+  getSizeAdapterState(input)?.target ?? parseImageSize(input.size);
+
 const chooseUpscalePlan = (
   size: { width: number; height: number },
   maxSize: { width: number; height: number; maxPixels?: number },
@@ -135,52 +144,11 @@ const chooseUpscalePlan = (
   scale: number;
   adaptedSize: { width: number; height: number };
 } => {
-  const scales = config.scale === undefined ? defaultScales : [config.scale];
+  const adaptedSize = fitWithin(size, maxSize);
+  const scale = config.scale ?? chooseScaleForSize(adaptedSize, size, 2);
 
-  for (const scale of scales) {
-    const adaptedSize = getExactScaledSize(size, scale);
-
-    if (adaptedSize && fitsWithin(adaptedSize, maxSize)) {
-      return { scale, adaptedSize };
-    }
-  }
-
-  throw new OpenAIClientError(
-    `Requested image size '${formatImageSize(size)}' cannot be produced by Modelslab size adapter without a final resize. Use a size divisible by ${scales.join(", ")} and within configured max size after scaling.`,
-    {
-      code: "invalid_request",
-      param: "size",
-    },
-  );
+  return { scale: Math.min(4, Math.max(2, scale)), adaptedSize };
 };
-
-const getExactScaledSize = (
-  size: { width: number; height: number },
-  scale: number,
-): { width: number; height: number } | undefined => {
-  if (
-    !Number.isInteger(scale) ||
-    scale <= 1 ||
-    size.width % scale !== 0 ||
-    size.height % scale !== 0
-  ) {
-    return undefined;
-  }
-
-  return {
-    width: size.width / scale,
-    height: size.height / scale,
-  };
-};
-
-const fitsWithin = (
-  size: { width: number; height: number },
-  maxSize: { width: number; height: number; maxPixels?: number },
-): boolean =>
-  size.width <= maxSize.width &&
-  size.height <= maxSize.height &&
-  (maxSize.maxPixels === undefined ||
-    size.width * size.height <= maxSize.maxPixels);
 
 const getModelIdForScale = (
   scale: number,
@@ -202,7 +170,7 @@ const getModelIdForScale = (
 const prepareModelslabRequest = async (
   bytes: Uint8Array,
   _mimeType: ImageMimeType,
-  state: NonNullable<ReturnType<typeof getSizeAdapterState>>,
+  target: { width: number; height: number },
   config: ModelslabRealEsrganSizeAdapterConfig,
 ): Promise<{
   modelId: string;
@@ -211,19 +179,19 @@ const prepareModelslabRequest = async (
   const actualSize = await getImageSize(bytes);
 
   if (
-    actualSize.width >= state.target.width &&
-    actualSize.height >= state.target.height
+    actualSize.width >= target.width &&
+    actualSize.height >= target.height
   ) {
     imageLog("modelslab size adapter skipped", {
       processorId: config.id,
       reason: "actual output already satisfies requested size",
       actualSize: formatImageSize(actualSize),
-      targetSize: formatImageSize(state.target),
+      targetSize: formatImageSize(target),
     });
     return undefined;
   }
 
-  const scale = getOutputScale(actualSize, state, config);
+  const scale = getOutputScale(actualSize, target, config);
 
   return {
     modelId: config.modelId ?? getModelIdForScale(scale, config),
@@ -253,21 +221,28 @@ const getImageSize = async (
 
 const getOutputScale = (
   actualSize: { width: number; height: number },
-  state: NonNullable<ReturnType<typeof getSizeAdapterState>>,
+  target: { width: number; height: number },
   config: ModelslabRealEsrganSizeAdapterConfig,
 ): number => {
   if (config.scale !== undefined) {
     return config.scale;
   }
 
-  const scale = Math.max(
-    state.scale ?? 2,
-    Math.ceil(state.target.width / actualSize.width),
-    Math.ceil(state.target.height / actualSize.height),
-  );
+  const scale = chooseScaleForSize(actualSize, target, 2);
 
   return Math.min(4, Math.max(2, scale));
 };
+
+const chooseScaleForSize = (
+  source: { width: number; height: number },
+  target: { width: number; height: number },
+  minScale: number,
+): number =>
+  Math.max(
+    minScale,
+    Math.ceil(target.width / source.width),
+    Math.ceil(target.height / source.height),
+  );
 
 const upscaleImage = async (
   bytes: Uint8Array,

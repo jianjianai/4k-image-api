@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { imageWarn, summarizeError } from "../logger.ts";
 import type { LocalSharpLanczos3SizeAdapterConfig } from "../provider-config.ts";
 import type { ImageInput, ImageMimeType, ImageProcessor } from "../types.ts";
 import {
@@ -28,11 +29,25 @@ export const createLocalSharpLanczos3SizeAdapter = (
 
     const images = await Promise.all(
       output.images.map(async (image) => {
-        const resized = await resizeImage(
-          image.bytes,
-          image.mimeType,
-          target,
-        );
+        let resized: {
+          bytes: Uint8Array;
+          mimeType: ImageMimeType;
+        };
+
+        try {
+          resized = await resizeImage(
+            image.bytes,
+            image.mimeType,
+            target,
+          );
+        } catch (error) {
+          imageWarn("local sharp size adapter returned original image", {
+            processorId: config.id,
+            reason: "post-generation processing failed",
+            error: summarizeError(error),
+          });
+          return image;
+        }
 
         if (resized.bytes === image.bytes && resized.mimeType === image.mimeType) {
           return image;

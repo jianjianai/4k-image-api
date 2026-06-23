@@ -14,7 +14,7 @@ describe("createModelslabRealEsrganSizeAdapter", () => {
     const processor = createProcessor();
     const input = imageInput("512x512");
     const processedInput = await processor.processInput?.(input, context());
-    const output = imageOutput();
+    const output = imageOutput(await createPng(512, 512));
     const processedOutput = await processor.processOutput?.(
       output,
       processedInput ?? input,
@@ -84,12 +84,12 @@ describe("createModelslabRealEsrganSizeAdapter", () => {
     const input = await processor.processInput?.(imageInput("2480x3328"), context());
 
     await processor.processOutput?.(
-      imageOutput(await createPng(1240, 1664)),
+      imageOutput(await createPng(1243, 1668)),
       input!,
       context(),
     );
 
-    expect(input?.size).toBe("1240x1664");
+    expect(input?.size).toBe("1243x1668");
     expectModelslabRequest(fetch, {
       modelId: "RealESRGAN_x2plus",
       scale: 2,
@@ -184,7 +184,7 @@ describe("createModelslabRealEsrganSizeAdapter", () => {
       context(),
     );
 
-    expect(input?.size).toBe("960x960");
+    expect(input?.size).toBe("1024x1024");
     expectModelslabRequest(fetch, {
       modelId: "realesr-general-x4v3",
       scale: 4,
@@ -212,15 +212,14 @@ describe("createModelslabRealEsrganSizeAdapter", () => {
     expect(output?.images[0]?.mimeType).toBe("image/png");
   });
 
-  it("rejects sizes that cannot be produced exactly without a final resize", async () => {
+  it("adapts uneven sizes instead of rejecting after exact-scale planning fails", async () => {
     const processor = createProcessor({
       modelId: undefined,
       scale: undefined,
     });
+    const input = await processor.processInput?.(imageInput("2049x1024"), context());
 
-    expect(() => processor.processInput?.(imageInput("2049x1024"), context())).toThrow(
-      "without a final resize",
-    );
+    expect(input?.size).toBe("1024x511");
   });
 });
 

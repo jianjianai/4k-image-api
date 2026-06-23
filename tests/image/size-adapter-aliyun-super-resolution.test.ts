@@ -52,7 +52,7 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
     const processor = createProcessor();
     const input = imageInput("512x512");
     const processedInput = await processor.processInput?.(input, context());
-    const output = imageOutput();
+    const output = imageOutput(await createPng(512, 512));
     const processedOutput = await processor.processOutput?.(
       output,
       processedInput ?? input,
@@ -144,7 +144,7 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
       context(),
     );
 
-    expect(input?.size).toBe("620x832");
+    expect(input?.size).toBe("804x1080");
     expect(mocks.makeSuperResolutionImageAdvance).toHaveBeenCalledWith(
       expect.objectContaining({
         upscaleFactor: 4,
@@ -228,10 +228,10 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
     const upload = await readableToBuffer(request.urlObject!);
     const metadata = await sharp(upload).metadata();
 
-    expect(input?.size).toBe("960x960");
+    expect(input?.size).toBe("1024x1024");
     expect(request.upscaleFactor).toBe(3);
-    expect(metadata.width).toBe(960);
-    expect(metadata.height).toBe(960);
+    expect(metadata.width).toBe(1024);
+    expect(metadata.height).toBe(1024);
   });
 
   it("preserves provider output aspect ratio when resizing before Aliyun upload", async () => {
@@ -273,8 +273,8 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
     const upload = await readableToBuffer(request.urlObject!);
     const metadata = await sharp(upload).metadata();
 
-    expect(metadata.width).toBe(960);
-    expect(metadata.height).toBe(720);
+    expect(metadata.width).toBe(1024);
+    expect(metadata.height).toBe(768);
   });
 
   it("uses best-effort 4x when actual provider output is too small for the target", async () => {
@@ -304,8 +304,44 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
       upscaleFactor?: number;
     };
 
-    expect(input?.size).toBe("960x960");
+    expect(input?.size).toBe("1024x1024");
     expect(request.upscaleFactor).toBe(4);
+  });
+
+  it("shrinks oversized actual output to the largest Aliyun-accepted size", async () => {
+    mocks.makeSuperResolutionImageAdvance.mockResolvedValueOnce({
+      body: {
+        data: {
+          url: "https://example.test/output.png",
+        },
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(new Response(new Uint8Array([9, 8, 7]))),
+    );
+    const processor = createProcessor({
+      scale: undefined,
+    });
+    const input = await processor.processInput?.(imageInput("3840x2160"), context());
+
+    await processor.processOutput?.(
+      imageOutput(await createPng(864, 1821)),
+      input!,
+      context(),
+    );
+
+    const request = mocks.makeSuperResolutionImageAdvance.mock.calls[0]?.[0] as {
+      urlObject?: AsyncIterable<Uint8Array>;
+      upscaleFactor?: number;
+    };
+    const upload = await readableToBuffer(request.urlObject!);
+    const metadata = await sharp(upload).metadata();
+
+    expect(input?.size).toBe("1024x576");
+    expect(request.upscaleFactor).toBe(4);
+    expect(metadata.width).toBe(486);
+    expect(metadata.height).toBe(1024);
   });
 
   it("returns the generated image when post-generation Aliyun processing fails", async () => {
@@ -326,14 +362,13 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
     expect(output?.images[0]?.mimeType).toBe("image/png");
   });
 
-  it("rejects sizes that cannot be produced exactly without a final resize", async () => {
+  it("adapts uneven sizes instead of rejecting after exact-scale planning fails", async () => {
     const processor = createProcessor({
       scale: undefined,
     });
+    const input = await processor.processInput?.(imageInput("2049x1024"), context());
 
-    expect(() => processor.processInput?.(imageInput("2049x1024"), context())).toThrow(
-      "without a final resize",
-    );
+    expect(input?.size).toBe("1024x511");
   });
 });
 
