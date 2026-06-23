@@ -100,6 +100,84 @@ describe("OpenAI image routes", () => {
     });
   });
 
+  it("returns images streaming responses immediately in SSE format", async () => {
+    const response = await server.fetch("/v1/images/generations", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "http://example.test",
+      },
+      body: JSON.stringify({
+        model: "test-image",
+        prompt: "cat",
+        stream: true,
+      }),
+    });
+    const events = parseSSE(await response.text());
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    expect(response.headers.get("cache-control")).toContain("no-cache");
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "http://example.test",
+    );
+    expect(events[0]).toEqual({ comment: "stream-open" });
+    expect(events).toContainEqual({ data: "[DONE]" });
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: "image_generation.completed",
+          b64_json: expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  it("returns responses streaming responses in SSE format", async () => {
+    const response = await server.fetch("/v1/responses", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "http://example.test",
+      },
+      body: JSON.stringify({
+        model: "test-image",
+        input: "cat",
+        stream: true,
+        tools: [
+          {
+            type: "image_generation",
+            model: "test-image",
+          },
+        ],
+        tool_choice: "required",
+      }),
+    });
+    const events = parseSSE(await response.text());
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        event: "response.completed",
+        data: expect.objectContaining({
+          type: "response.completed",
+          response: expect.objectContaining({
+            status: "completed",
+            output: expect.arrayContaining([
+              expect.objectContaining({
+                type: "image_generation_call",
+                status: "completed",
+                result: expect.any(String),
+              }),
+            ]),
+          }),
+        }),
+      }),
+    );
+    expect(events).toContainEqual({ data: "[DONE]" });
+  });
+
   it("returns OpenAI JSON errors for unknown endpoints", async () => {
     const response = await server.fetch("/v1/nope", {
       method: "POST",
@@ -179,6 +257,39 @@ describe("OpenAI image routes", () => {
     );
   });
 });
+
+const parseSSE = (text: string): Array<Record<string, unknown>> =>
+  text
+    .trim()
+    .split(/\n\n/)
+    .filter(Boolean)
+    .map((chunk) => {
+      const event: Record<string, unknown> = {};
+      const data: string[] = [];
+
+      for (const line of chunk.split("\n")) {
+        if (line.startsWith(":")) {
+          event.comment = line.slice(1).trim();
+          continue;
+        }
+
+        if (line.startsWith("event:")) {
+          event.event = line.slice("event:".length).trim();
+          continue;
+        }
+
+        if (line.startsWith("data:")) {
+          data.push(line.slice("data:".length).trim());
+        }
+      }
+
+      if (data.length > 0) {
+        const payload = data.join("\n");
+        event.data = payload === "[DONE]" ? payload : JSON.parse(payload);
+      }
+
+      return event;
+    });
 
 describe("OpenAI image route API key protection", () => {
   let server: TestViteServer;

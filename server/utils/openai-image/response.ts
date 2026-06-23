@@ -1,5 +1,6 @@
 import type { ImageInput, ImageMimeType, ImageOutput } from "../image.ts";
 import { bytesToBase64 } from "./assets.ts";
+import type { OpenAIStreamEvent } from "./types.ts";
 
 export const toOpenAIImageResponse = (
   output: ImageOutput,
@@ -58,5 +59,65 @@ export const toOpenAIResponse = (
   usage: output.usage,
 });
 
+export const toOpenAIImageStreamEvents = (
+  output: ImageOutput,
+  input: ImageInput,
+): OpenAIStreamEvent[] =>
+  output.images.map((image, index) => {
+    const eventType =
+      input.action === "edit" ? "image_edit.completed" : "image_generation.completed";
+
+    return {
+      data: {
+        type: eventType,
+        b64_json: bytesToBase64(image.bytes),
+        created_at: Math.floor(Date.now() / 1000),
+        output_format: mimeTypeToImageFormat(image.mimeType),
+        revised_prompt:
+          image.revisedPrompt ?? (index === 0 ? input.prompt : undefined),
+      },
+    };
+  });
+
+export const toOpenAIResponseStreamEvents = (
+  output: ImageOutput,
+  input: ImageInput,
+): OpenAIStreamEvent[] => {
+  const response = toOpenAIResponse(output, input);
+
+  return [
+    {
+      event: "response.created",
+      data: {
+        type: "response.created",
+        response: {
+          ...response,
+          status: "in_progress",
+          output: [],
+        },
+      },
+    },
+    {
+      event: "response.completed",
+      data: {
+        type: "response.completed",
+        response,
+      },
+    },
+  ];
+};
+
 const imageToDataUrl = (bytes: Uint8Array, mimeType: ImageMimeType): string =>
   `data:${mimeType};base64,${bytesToBase64(bytes)}`;
+
+const mimeTypeToImageFormat = (mimeType: ImageMimeType): "png" | "jpeg" | "webp" => {
+  if (mimeType === "image/jpeg") {
+    return "jpeg";
+  }
+
+  if (mimeType === "image/webp") {
+    return "webp";
+  }
+
+  return "png";
+};

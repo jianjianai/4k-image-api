@@ -14,6 +14,7 @@ describe("OpenAI image parsers", () => {
       n: "2",
       size: "1024x1024",
       response_format: "url",
+      stream: "true",
     });
 
     expect(input).toMatchObject({
@@ -23,6 +24,7 @@ describe("OpenAI image parsers", () => {
       n: 2,
       size: "1024x1024",
       responseFormat: "url",
+      stream: true,
     });
   });
 

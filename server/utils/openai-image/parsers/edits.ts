@@ -2,6 +2,7 @@ import type { ImageInput } from "../../image.ts";
 import { getImageAssets, getOptionalImageAsset } from "../assets.ts";
 import {
   defaultImageModel,
+  getBoolean,
   getNumber,
   getResponseFormat,
   getString,
@@ -22,6 +23,7 @@ export const parseImageEditRequest = async (
   format: getString(request.output_format) ?? getString(request.format),
   background: getString(request.background),
   responseFormat: getResponseFormat(request.response_format),
+  stream: getBoolean(request.stream),
   options: {
     inputFidelity: request.input_fidelity,
     outputCompression: request.output_compression,
