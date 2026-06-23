@@ -224,6 +224,33 @@ describe("parseImageProcessorConfig", () => {
       timeoutMs: 120000,
     });
   });
+
+  it("parses Claid upscale size adapter configs", () => {
+    expect(
+      parseImageProcessorConfig({
+        id: "resize-claid",
+        type: "size-adapter:claid:upscale",
+        maxWidth: 4096,
+        maxHeight: 4096,
+        maxPixels: 16777216,
+        apiKey: "claid-key-test",
+        baseURL: "https://example.test/image/edit/upload",
+        upscaleType: "photo",
+        timeoutMs: 120000,
+      }),
+    ).toEqual({
+      id: "resize-claid",
+      type: "size-adapter:claid:upscale",
+      enabled: undefined,
+      maxWidth: 4096,
+      maxHeight: 4096,
+      maxPixels: 16777216,
+      apiKey: "claid-key-test",
+      baseURL: "https://example.test/image/edit/upload",
+      upscaleType: "photo",
+      timeoutMs: 120000,
+    });
+  });
 });
 
 describe("parseImageRuntimeConfig", () => {

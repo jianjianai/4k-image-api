@@ -16,7 +16,8 @@ export type ImageProcessorConfig =
   | TestImageProcessorConfig
   | LocalSharpLanczos3SizeAdapterConfig
   | AliyunSuperResolutionSizeAdapterConfig
-  | ModelslabRealEsrganSizeAdapterConfig;
+  | ModelslabRealEsrganSizeAdapterConfig
+  | ClaidUpscaleSizeAdapterConfig;
 
 export type TestImageProcessorConfig = {
   id: string;
@@ -67,6 +68,26 @@ export type AliyunSuperResolutionSizeAdapterConfig = {
   outputQuality?: number;
   timeoutMs?: number;
 };
+
+export type ClaidUpscaleSizeAdapterConfig = {
+  id: string;
+  type: "size-adapter:claid:upscale";
+  enabled?: boolean;
+  maxWidth: number;
+  maxHeight: number;
+  maxPixels?: number;
+  apiKey: string;
+  baseURL?: string;
+  upscaleType?: ClaidUpscaleType;
+  timeoutMs?: number;
+};
+
+export type ClaidUpscaleType =
+  | "smart_enhance"
+  | "smart_resize"
+  | "faces"
+  | "digital_art"
+  | "photo";
 
 export type ModelslabRealEsrganModelId =
   | "RealESRGAN_x4plus"
@@ -222,8 +243,12 @@ export const parseImageProcessorConfig = (
     return parseModelslabRealEsrganSizeAdapterConfig(value);
   }
 
+  if (value.type === "size-adapter:claid:upscale") {
+    return parseClaidUpscaleSizeAdapterConfig(value);
+  }
+
   throw new Error(
-    "Image processor config type must be 'testprocessor', 'size-adapter:local:sharp-lanczos3', 'size-adapter:aliyun:super-resolution', or 'size-adapter:modelslab:real-esrgan'.",
+    "Image processor config type must be 'testprocessor', 'size-adapter:local:sharp-lanczos3', 'size-adapter:aliyun:super-resolution', 'size-adapter:modelslab:real-esrgan', or 'size-adapter:claid:upscale'.",
   );
 };
 
@@ -330,6 +355,21 @@ const parseAliyunSuperResolutionSizeAdapterConfig = (
   timeoutMs: getOptionalNumber(value.timeoutMs, "timeoutMs"),
 });
 
+const parseClaidUpscaleSizeAdapterConfig = (
+  value: Record<string, unknown>,
+): ClaidUpscaleSizeAdapterConfig => ({
+  id: getRequiredString(value.id, "id"),
+  type: "size-adapter:claid:upscale",
+  enabled: getOptionalBoolean(value.enabled, "enabled"),
+  maxWidth: getRequiredNumber(value.maxWidth, "maxWidth"),
+  maxHeight: getRequiredNumber(value.maxHeight, "maxHeight"),
+  maxPixels: getOptionalNumber(value.maxPixels, "maxPixels"),
+  apiKey: getRequiredString(value.apiKey, "apiKey"),
+  baseURL: getOptionalString(value.baseURL, "baseURL"),
+  upscaleType: getOptionalClaidUpscaleType(value.upscaleType, "upscaleType"),
+  timeoutMs: getOptionalNumber(value.timeoutMs, "timeoutMs"),
+});
+
 const getRequiredString = (value: unknown, name: string): string => {
   if (typeof value === "string" && value.length > 0) {
     return value;
@@ -405,6 +445,29 @@ const getOptionalAliyunSuperResolutionOutputFormat = (
 
   throw new Error(
     `Image processor config '${name}' must be 'png', 'jpg', or 'bmp'.`,
+  );
+};
+
+const getOptionalClaidUpscaleType = (
+  value: unknown,
+  name: string,
+): ClaidUpscaleType | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (
+    value === "smart_enhance" ||
+    value === "smart_resize" ||
+    value === "faces" ||
+    value === "digital_art" ||
+    value === "photo"
+  ) {
+    return value;
+  }
+
+  throw new Error(
+    `Image processor config '${name}' must be 'smart_enhance', 'smart_resize', 'faces', 'digital_art', or 'photo'.`,
   );
 };
 

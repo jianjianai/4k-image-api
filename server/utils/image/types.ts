@@ -14,7 +14,8 @@ export type ImageProcessorType =
   | "testprocessor"
   | "size-adapter:local:sharp-lanczos3"
   | "size-adapter:aliyun:super-resolution"
-  | "size-adapter:modelslab:real-esrgan";
+  | "size-adapter:modelslab:real-esrgan"
+  | "size-adapter:claid:upscale";
 
 export type ImageAsset = {
   data: Uint8Array;

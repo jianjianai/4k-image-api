@@ -7,6 +7,7 @@ import { createOpenAIImageVariationProvider } from "../utils/image/providers/ope
 import { createOpenAIResponsesImageProvider } from "../utils/image/providers/openai-responses.ts";
 import { createTestImageProvider, testImageProvider } from "../utils/image/providers/test.ts";
 import { createAliyunSuperResolutionSizeAdapter } from "../utils/image/processors/size-adapter-aliyun-super-resolution.ts";
+import { createClaidUpscaleSizeAdapter } from "../utils/image/processors/size-adapter-claid-upscale.ts";
 import { createLocalSharpLanczos3SizeAdapter } from "../utils/image/processors/size-adapter-local-sharp-lanczos3.ts";
 import { createModelslabRealEsrganSizeAdapter } from "../utils/image/processors/size-adapter-modelslab-real-esrgan.ts";
 import { createTestImageProcessor } from "../utils/image/processors/testprocessor.ts";
@@ -72,6 +73,20 @@ export default definePlugin(() => {
         maxWidth: processorConfig.maxWidth,
         maxHeight: processorConfig.maxHeight,
         maxPixels: processorConfig.maxPixels,
+      });
+      continue;
+    }
+
+    if (processorConfig.type === "size-adapter:claid:upscale") {
+      imageProcessorManager.add(createClaidUpscaleSizeAdapter(processorConfig));
+      imageLog("processor registered", {
+        processorId: processorConfig.id,
+        processorType: processorConfig.type,
+        maxWidth: processorConfig.maxWidth,
+        maxHeight: processorConfig.maxHeight,
+        maxPixels: processorConfig.maxPixels,
+        baseURL: processorConfig.baseURL,
+        upscaleType: processorConfig.upscaleType,
       });
     }
   }

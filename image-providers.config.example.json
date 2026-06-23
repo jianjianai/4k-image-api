@@ -29,6 +29,16 @@
       "faceEnhance": false
     },
     {
+      "id": "resize-claid-auto",
+      "type": "size-adapter:claid:upscale",
+      "maxWidth": 1920,
+      "maxHeight": 1920,
+      "maxPixels": 2073600,
+      "apiKey": "claid-your-api-key",
+      "upscaleType": "smart_enhance",
+      "timeoutMs": 120000
+    },
+    {
       "id": "resize-aliyun-auto",
       "type": "size-adapter:aliyun:super-resolution",
       "maxWidth": 1920,
