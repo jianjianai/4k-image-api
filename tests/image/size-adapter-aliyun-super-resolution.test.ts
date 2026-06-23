@@ -308,6 +308,24 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
     expect(request.upscaleFactor).toBe(4);
   });
 
+  it("returns the generated image when post-generation Aliyun processing fails", async () => {
+    mocks.makeSuperResolutionImageAdvance.mockRejectedValueOnce(
+      new Error("upstream unavailable"),
+    );
+    vi.stubGlobal("fetch", vi.fn());
+    const processor = createProcessor({
+      scale: undefined,
+    });
+    const input = await processor.processInput?.(imageInput("2880x2880"), context());
+    const image = imageOutput(await createPng(960, 960));
+
+    const output = await processor.processOutput?.(image, input!, context());
+
+    expect(mocks.makeSuperResolutionImageAdvance).toHaveBeenCalled();
+    expect(output?.images[0]?.bytes).toBe(image.images[0]?.bytes);
+    expect(output?.images[0]?.mimeType).toBe("image/png");
+  });
+
   it("rejects sizes that cannot be produced exactly without a final resize", async () => {
     const processor = createProcessor({
       scale: undefined,

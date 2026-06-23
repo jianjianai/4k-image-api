@@ -8,6 +8,7 @@ import {
   elapsedMs,
   imageError,
   imageLog,
+  imageWarn,
   nowMs,
   summarizeError,
   summarizeURL,
@@ -64,24 +65,38 @@ export const createAliyunSuperResolutionSizeAdapter = (
       ...output,
       images: await Promise.all(
         output.images.map(async (image) => {
-          const inputImage = await prepareAliyunInputImage(
-            image.bytes,
-            image.mimeType,
-            state,
-            config,
-          );
-          const result = await upscaleImage(
-            inputImage.bytes,
-            inputImage.mimeType,
-            config,
-            { scale: inputImage.scale },
-          );
+          try {
+            const inputImage = await prepareAliyunInputImage(
+              image.bytes,
+              image.mimeType,
+              state,
+              config,
+            );
 
-          return {
-            ...image,
-            bytes: result.bytes,
-            mimeType: result.mimeType,
-          };
+            if (inputImage.scale <= 1) {
+              return image;
+            }
+
+            const result = await upscaleImage(
+              inputImage.bytes,
+              inputImage.mimeType,
+              config,
+              { scale: inputImage.scale },
+            );
+
+            return {
+              ...image,
+              bytes: result.bytes,
+              mimeType: result.mimeType,
+            };
+          } catch (error) {
+            imageWarn("aliyun size adapter returned original image", {
+              processorId: config.id,
+              reason: "post-generation processing failed",
+              error: summarizeError(error),
+            });
+            return image;
+          }
         }),
       ),
     };
@@ -218,6 +233,13 @@ const getOutputScale = (
   state: NonNullable<ReturnType<typeof getSizeAdapterState>>,
   config: AliyunSuperResolutionSizeAdapterConfig,
 ): number => {
+  if (
+    actualSize.width >= state.target.width &&
+    actualSize.height >= state.target.height
+  ) {
+    return 1;
+  }
+
   if (config.scale !== undefined) {
     return config.scale;
   }

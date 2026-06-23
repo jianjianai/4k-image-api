@@ -10,6 +10,17 @@ Refer to `node_modules/nitro/dist/docs/README.md` when working on server (your k
 
 - Path alias `~/*` (tsconfig), use explicit `.ts` extensions
 
+## Image Generation Cost Policy
+
+When working on image providers or processors, protect image generation cost:
+
+- Before calling an upstream image generation API, fail fast for unsupported requests when possible.
+- After an upstream image generation API has returned an image, downstream processors should return a usable image whenever possible instead of rejecting solely because the exact requested size cannot be met.
+- If the generated image is too small for the requested output, use the best available upscale path, such as the maximum supported cloud upscale factor, and return that result.
+- If the generated image is too large for a downstream processor, resize it proportionally to a supported size and continue processing.
+- Preserve aspect ratio. Do not stretch or distort generated images to force an exact size.
+- Only fail after generation when no usable image can be returned, such as invalid image bytes, failed downloads, or unrecoverable processor/provider errors.
+
 
 
 # AGENTS.md

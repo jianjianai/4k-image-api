@@ -1,10 +1,13 @@
 import { bytesToBase64 } from "../../openai-image/assets.ts";
 import { OpenAIClientError } from "../../openai-image/errors.ts";
+import sharp from "sharp";
 import {
   elapsedMs,
   imageError,
   imageLog,
+  imageWarn,
   nowMs,
+  summarizeError,
   summarizeURL,
 } from "../logger.ts";
 import type { ModelslabRealEsrganSizeAdapterConfig } from "../provider-config.ts";
@@ -42,16 +45,38 @@ export const createModelslabRealEsrganSizeAdapter = (
       ...output,
       images: await Promise.all(
         output.images.map(async (image) => {
-          const result = await upscaleImage(image.bytes, image.mimeType, config, {
-            modelId: state.modelId ?? getModelIdForScale(state.scale ?? 4, config),
-            scale: state.scale ?? 4,
-          });
+          try {
+            const request = await prepareModelslabRequest(
+              image.bytes,
+              image.mimeType,
+              state,
+              config,
+            );
 
-          return {
-            ...image,
-            bytes: result.bytes,
-            mimeType: result.mimeType,
-          };
+            if (!request) {
+              return image;
+            }
+
+            const result = await upscaleImage(
+              image.bytes,
+              image.mimeType,
+              config,
+              request,
+            );
+
+            return {
+              ...image,
+              bytes: result.bytes,
+              mimeType: result.mimeType,
+            };
+          } catch (error) {
+            imageWarn("modelslab size adapter returned original image", {
+              processorId: config.id,
+              reason: "post-generation processing failed",
+              error: summarizeError(error),
+            });
+            return image;
+          }
         }),
       ),
     };
@@ -174,6 +199,76 @@ const getModelIdForScale = (
   return scale <= 2 ? scale2ModelId : generalModelId;
 };
 
+const prepareModelslabRequest = async (
+  bytes: Uint8Array,
+  _mimeType: ImageMimeType,
+  state: NonNullable<ReturnType<typeof getSizeAdapterState>>,
+  config: ModelslabRealEsrganSizeAdapterConfig,
+): Promise<{
+  modelId: string;
+  scale: number;
+} | undefined> => {
+  const actualSize = await getImageSize(bytes);
+
+  if (
+    actualSize.width >= state.target.width &&
+    actualSize.height >= state.target.height
+  ) {
+    imageLog("modelslab size adapter skipped", {
+      processorId: config.id,
+      reason: "actual output already satisfies requested size",
+      actualSize: formatImageSize(actualSize),
+      targetSize: formatImageSize(state.target),
+    });
+    return undefined;
+  }
+
+  const scale = getOutputScale(actualSize, state, config);
+
+  return {
+    modelId: config.modelId ?? getModelIdForScale(scale, config),
+    scale,
+  };
+};
+
+const getImageSize = async (
+  bytes: Uint8Array,
+): Promise<{ width: number; height: number }> => {
+  const metadata = await sharp(bytes).metadata();
+
+  if (
+    typeof metadata.width === "number" &&
+    Number.isFinite(metadata.width) &&
+    typeof metadata.height === "number" &&
+    Number.isFinite(metadata.height)
+  ) {
+    return {
+      width: metadata.width,
+      height: metadata.height,
+    };
+  }
+
+  throw new OpenAIClientError("Modelslab size adapter could not read image dimensions.");
+};
+
+const getOutputScale = (
+  actualSize: { width: number; height: number },
+  state: NonNullable<ReturnType<typeof getSizeAdapterState>>,
+  config: ModelslabRealEsrganSizeAdapterConfig,
+): number => {
+  if (config.scale !== undefined) {
+    return config.scale;
+  }
+
+  const scale = Math.max(
+    state.scale ?? 2,
+    Math.ceil(state.target.width / actualSize.width),
+    Math.ceil(state.target.height / actualSize.height),
+  );
+
+  return Math.min(4, Math.max(2, scale));
+};
+
 const upscaleImage = async (
   bytes: Uint8Array,
   mimeType: ImageMimeType,
@@ -189,61 +284,71 @@ const upscaleImage = async (
   const startedAt = nowMs();
   const requestURL = config.baseURL ?? defaultBaseURL;
 
-  imageLog("modelslab super resolution request", {
-    processorId: config.id,
-    url: summarizeURL(requestURL),
-    modelId: request.modelId,
-    scale: request.scale,
-    faceEnhance: config.faceEnhance ?? false,
-    inputBytes: bytes.byteLength,
-    inputMimeType: mimeType,
-  });
-  const response = await fetch(requestURL, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      key: config.apiKey,
-      init_image: `data:${mimeType};base64,${bytesToBase64(bytes)}`,
-      model_id: request.modelId,
+  try {
+    imageLog("modelslab super resolution request", {
+      processorId: config.id,
+      url: summarizeURL(requestURL),
+      modelId: request.modelId,
       scale: request.scale,
-      face_enhance: config.faceEnhance ?? false,
-    }),
-  });
+      faceEnhance: config.faceEnhance ?? false,
+      inputBytes: bytes.byteLength,
+      inputMimeType: mimeType,
+    });
+    const response = await fetch(requestURL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        key: config.apiKey,
+        init_image: `data:${mimeType};base64,${bytesToBase64(bytes)}`,
+        model_id: request.modelId,
+        scale: request.scale,
+        face_enhance: config.faceEnhance ?? false,
+      }),
+    });
 
-  if (!response.ok) {
+    if (!response.ok) {
+      imageError("modelslab super resolution failed", {
+        processorId: config.id,
+        url: summarizeURL(requestURL),
+        status: response.status,
+        elapsedMs: elapsedMs(startedAt),
+      });
+      throw new OpenAIClientError(
+        `Modelslab size adapter request failed with status ${response.status}.`,
+        {
+          code: "invalid_request",
+          status: response.status,
+        },
+      );
+    }
+
+    const payload = (await response.json()) as unknown;
+    const imageURL = getModelslabOutputURL(payload);
+
+    imageLog("modelslab super resolution response", {
+      processorId: config.id,
+      elapsedMs: elapsedMs(startedAt),
+      outputURL: summarizeURL(imageURL),
+    });
+
+    if (!imageURL) {
+      throw new OpenAIClientError(
+        "Modelslab size adapter response did not include an output image URL.",
+      );
+    }
+
+    return downloadImage(imageURL);
+  } catch (error) {
     imageError("modelslab super resolution failed", {
       processorId: config.id,
       url: summarizeURL(requestURL),
-      status: response.status,
       elapsedMs: elapsedMs(startedAt),
+      error: summarizeError(error),
     });
-    throw new OpenAIClientError(
-      `Modelslab size adapter request failed with status ${response.status}.`,
-      {
-        code: "invalid_request",
-        status: response.status,
-      },
-    );
+    throw error;
   }
-
-  const payload = (await response.json()) as unknown;
-  const imageURL = getModelslabOutputURL(payload);
-
-  imageLog("modelslab super resolution response", {
-    processorId: config.id,
-    elapsedMs: elapsedMs(startedAt),
-    outputURL: summarizeURL(imageURL),
-  });
-
-  if (!imageURL) {
-    throw new OpenAIClientError(
-      "Modelslab size adapter response did not include an output image URL.",
-    );
-  }
-
-  return downloadImage(imageURL);
 };
 
 const getModelslabOutputURL = (payload: unknown): string | undefined => {
