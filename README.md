@@ -397,6 +397,7 @@ Modelslab 版本不会在云端放大后再用本地 `sharp` 做最终 resize。
 | `project` | 否 | OpenAI project |
 | `timeoutMs` | 否 | SDK 请求超时时间 |
 | `maxRetries` | 否 | SDK 最大重试次数 |
+| `userAgent` | 否 | 覆盖 OpenAI SDK 请求的 User-Agent，默认 `4k-image-api` |
 
 ## 完整配置示例
 
@@ -453,6 +454,7 @@ Modelslab 版本不会在云端放大后再用本地 `sharp` 做最终 resize。
       "apiKey": "sk-...",
       "models": ["gpt-image-1", "gpt-image-2"],
       "processor": "resize-local-4k",
+      "userAgent": "4k-image-api",
       "timeoutMs": 120000,
       "maxRetries": 1
     },

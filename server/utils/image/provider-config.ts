@@ -93,6 +93,7 @@ export type OpenAIProviderConfigBase = {
   models: string[];
   timeoutMs?: number;
   maxRetries?: number;
+  userAgent?: string;
 };
 
 export type OpenAIImagesProviderConfig = OpenAIProviderConfigBase & {
@@ -252,6 +253,7 @@ const parseOpenAIProviderConfig = (
     project: getOptionalString(value.project, "project"),
     timeoutMs: getOptionalNumber(value.timeoutMs, "timeoutMs"),
     maxRetries: getOptionalNumber(value.maxRetries, "maxRetries"),
+    userAgent: getOptionalString(value.userAgent, "userAgent"),
   };
 };
 

@@ -5,6 +5,8 @@ import type { Uploadable } from "openai/uploads";
 import type { OpenAIProviderConfig } from "../provider-config.ts";
 import type { ImageAsset, ImageMimeType, ImageOutput } from "../types.ts";
 
+const defaultOpenAIUserAgent = "4k-image-api";
+
 export type OpenAIImageClient = Pick<OpenAI, "images" | "responses">;
 
 export const createOpenAIClient = (config: OpenAIProviderConfig): OpenAI =>
@@ -15,6 +17,9 @@ export const createOpenAIClient = (config: OpenAIProviderConfig): OpenAI =>
     project: config.project,
     timeout: config.timeoutMs,
     maxRetries: config.maxRetries,
+    defaultHeaders: {
+      "User-Agent": config.userAgent ?? defaultOpenAIUserAgent,
+    },
   });
 
 export const base64ImageToBytes = (base64: string): Uint8Array =>

@@ -58,6 +58,7 @@
       "apiKey": "sk-your-api-key",
       "models": ["gpt-image-1", "gpt-image-2"],
       "processor": "resize-local-4k",
+      "userAgent": "4k-image-api",
       "timeoutMs": 120000,
       "maxRetries": 1
     },

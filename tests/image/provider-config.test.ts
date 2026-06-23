@@ -23,6 +23,7 @@ describe("parseImageProviderConfig", () => {
         processor: "test-processor",
         timeoutMs: 120000,
         maxRetries: 1,
+        userAgent: "custom-image-client",
       }),
     ).toEqual({
       id: "openai",
@@ -36,6 +37,7 @@ describe("parseImageProviderConfig", () => {
       models: ["gpt-image-1"],
       timeoutMs: 120000,
       maxRetries: 1,
+      userAgent: "custom-image-client",
     });
   });
 
@@ -70,6 +72,7 @@ describe("parseImageProviderConfig", () => {
       models: ["dall-e-2"],
       timeoutMs: undefined,
       maxRetries: undefined,
+      userAgent: undefined,
     });
   });
 
