@@ -27,6 +27,7 @@ When implementing or changing image size adapters, keep `processInput` and `proc
 
 - `processInput` runs before image generation. It should match the client-requested aspect ratio and send the largest image size the upstream generation provider can accept within configured limits. The generated request size should preserve the client aspect ratio and maximize source detail.
 - `processOutput` runs after image generation. It must preserve the upstream image aspect ratio; never stretch the generated image to force the client-requested ratio.
+- If the upstream generated image already satisfies both client-requested width and height, return it unchanged. Do not resize, upload to a cloud upscaler, or otherwise post-process it.
 - `processOutput` should try to satisfy both client-requested width and height. Prefer dimensions whose width is not lower than the requested width and whose height is not lower than the requested height.
 - If both requested dimensions cannot be satisfied, return the largest achievable image instead of failing, because generation cost has already been spent.
 - If a cloud upscaler requires shrinking the generated image before upload, shrink proportionally to the largest size accepted by that upscaler and configuration. Do not shrink to `requestedSize / upscaleFactor` when that would damage the source image more than necessary.

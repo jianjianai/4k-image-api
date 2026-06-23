@@ -174,6 +174,14 @@ const prepareAliyunInputImage = async (
   const actualSize = await getImageSize(bytes);
   const maxSize = getConfiguredAliyunInputMaxSize(config);
 
+  if (satisfiesTarget(actualSize, target)) {
+    return {
+      bytes,
+      mimeType,
+      scale: 1,
+    };
+  }
+
   if (fitsWithin(actualSize, maxSize)) {
     return {
       bytes,
@@ -207,10 +215,7 @@ const getOutputScale = (
   target: { width: number; height: number },
   config: AliyunSuperResolutionSizeAdapterConfig,
 ): number => {
-  if (
-    actualSize.width >= target.width &&
-    actualSize.height >= target.height
-  ) {
+  if (satisfiesTarget(actualSize, target)) {
     return 1;
   }
 
@@ -233,6 +238,13 @@ const chooseScaleForSize = (
     Math.ceil(target.width / source.width),
     Math.ceil(target.height / source.height),
   );
+
+const satisfiesTarget = (
+  actualSize: { width: number; height: number },
+  target: { width: number; height: number },
+): boolean =>
+  actualSize.width >= target.width &&
+  actualSize.height >= target.height;
 
 const getImageSize = async (
   bytes: Uint8Array,

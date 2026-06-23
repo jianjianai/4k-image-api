@@ -344,6 +344,23 @@ describe("createAliyunSuperResolutionSizeAdapter", () => {
     expect(metadata.height).toBe(1024);
   });
 
+  it("does not process oversized actual output when it already satisfies the target", async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const processor = createProcessor({
+      scale: undefined,
+    });
+    const input = await processor.processInput?.(imageInput("3840x2160"), context());
+    const image = imageOutput(await createPng(3840, 2160));
+
+    const output = await processor.processOutput?.(image, input!, context());
+
+    expect(output).toBe(image);
+    expect(mocks.clientConstructor).not.toHaveBeenCalled();
+    expect(mocks.makeSuperResolutionImageAdvance).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("returns the generated image when post-generation Aliyun processing fails", async () => {
     mocks.makeSuperResolutionImageAdvance.mockRejectedValueOnce(
       new Error("upstream unavailable"),
