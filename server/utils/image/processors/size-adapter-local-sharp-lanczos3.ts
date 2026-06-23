@@ -4,6 +4,8 @@ import type { ImageInput, ImageMimeType, ImageProcessor } from "../types.ts";
 import {
   adaptInputSize,
   getSizeAdapterState,
+  parseImageSize,
+  type ImageSize,
 } from "./size-adapter.ts";
 
 export const createLocalSharpLanczos3SizeAdapter = (
@@ -18,53 +20,62 @@ export const createLocalSharpLanczos3SizeAdapter = (
       maxPixels: config.maxPixels,
     }),
   processOutput: async (output, input) => {
-    const state = getSizeAdapterState(input);
+    const target = getOutputTarget(input);
 
-    if (!state) {
+    if (!target) {
+      return output;
+    }
+
+    const images = await Promise.all(
+      output.images.map(async (image) => {
+        const resized = await resizeImage(
+          image.bytes,
+          image.mimeType,
+          target,
+        );
+
+        if (resized.bytes === image.bytes && resized.mimeType === image.mimeType) {
+          return image;
+        }
+
+        return {
+          ...image,
+          bytes: resized.bytes,
+          mimeType: resized.mimeType,
+        };
+      }),
+    );
+
+    if (images.every((image, index) => image === output.images[index])) {
       return output;
     }
 
     return {
       ...output,
-      images: await Promise.all(
-        output.images.map(async (image) => {
-          const resized = await resizeImage(
-            image.bytes,
-            image.mimeType,
-            input,
-            config,
-          );
-
-          return {
-            ...image,
-            bytes: resized.bytes,
-            mimeType: resized.mimeType,
-          };
-        }),
-      ),
+      images,
     };
   },
 });
 
+const getOutputTarget = (input: ImageInput): ImageSize | undefined =>
+  getSizeAdapterState(input)?.target ?? parseImageSize(input.size);
+
 const resizeImage = async (
   bytes: Uint8Array,
   mimeType: ImageMimeType,
-  input: ImageInput,
-  config: LocalSharpLanczos3SizeAdapterConfig,
+  target: ImageSize,
 ): Promise<{
   bytes: Uint8Array;
   mimeType: ImageMimeType;
 }> => {
-  const state = getSizeAdapterState(input);
+  const dimensions = await getProportionalResizeDimensions(bytes, target);
 
-  if (!state) {
+  if (!dimensions) {
     return { bytes, mimeType };
   }
 
   let pipeline = sharp(bytes).resize({
-    width: state.target.width,
-    height: state.target.height,
-    fit: config.fit ?? "fill",
+    ...dimensions,
     kernel: sharp.kernel.lanczos3,
   });
 
@@ -80,4 +91,31 @@ const resizeImage = async (
     bytes: new Uint8Array(await pipeline.toBuffer()),
     mimeType,
   };
+};
+
+const getProportionalResizeDimensions = async (
+  bytes: Uint8Array,
+  target: ImageSize,
+): Promise<{ width: number } | { height: number } | undefined> => {
+  const metadata = await sharp(bytes).metadata();
+
+  if (
+    typeof metadata.width !== "number" ||
+    !Number.isFinite(metadata.width) ||
+    typeof metadata.height !== "number" ||
+    !Number.isFinite(metadata.height)
+  ) {
+    return undefined;
+  }
+
+  if (metadata.width >= target.width && metadata.height >= target.height) {
+    return undefined;
+  }
+
+  const widthScale = target.width / metadata.width;
+  const heightScale = target.height / metadata.height;
+
+  return widthScale >= heightScale
+    ? { width: target.width }
+    : { height: target.height };
 };

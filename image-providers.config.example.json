@@ -12,8 +12,7 @@
       "type": "size-adapter:local:sharp-lanczos3",
       "maxWidth": 1920,
       "maxHeight": 1920,
-      "maxPixels": 2073600,
-      "fit": "fill"
+      "maxPixels": 2073600
     },
     {
       "id": "resize-modelslab-auto",

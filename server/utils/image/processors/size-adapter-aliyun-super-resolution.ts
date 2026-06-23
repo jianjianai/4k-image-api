@@ -64,19 +64,17 @@ export const createAliyunSuperResolutionSizeAdapter = (
       ...output,
       images: await Promise.all(
         output.images.map(async (image) => {
-          const scale = state.scale ?? config.scale ?? 4;
           const inputImage = await prepareAliyunInputImage(
             image.bytes,
             image.mimeType,
             state,
             config,
-            scale,
           );
           const result = await upscaleImage(
             inputImage.bytes,
             inputImage.mimeType,
             config,
-            { scale },
+            { scale: inputImage.scale },
           );
 
           return {
@@ -184,16 +182,17 @@ const prepareAliyunInputImage = async (
   mimeType: ImageMimeType,
   state: NonNullable<ReturnType<typeof getSizeAdapterState>>,
   config: AliyunSuperResolutionSizeAdapterConfig,
-  scale: number,
 ): Promise<{
   bytes: Uint8Array;
   mimeType: ImageMimeType;
+  scale: number;
 }> => {
   const actualSize = await getImageSize(bytes);
+  const scale = getOutputScale(actualSize, state, config);
   const maxSize = getOutputAliyunInputMaxSize(state, config, scale);
 
   if (fitsWithin(actualSize, maxSize)) {
-    return { bytes, mimeType };
+    return { bytes, mimeType, scale };
   }
 
   const adaptedSize = fitWithin(actualSize, maxSize);
@@ -208,7 +207,28 @@ const prepareAliyunInputImage = async (
     maxPixels: maxSize.maxPixels,
   });
 
-  return resizeImage(bytes, mimeType, adaptedSize);
+  return {
+    ...(await resizeImage(bytes, mimeType, adaptedSize)),
+    scale,
+  };
+};
+
+const getOutputScale = (
+  actualSize: { width: number; height: number },
+  state: NonNullable<ReturnType<typeof getSizeAdapterState>>,
+  config: AliyunSuperResolutionSizeAdapterConfig,
+): number => {
+  if (config.scale !== undefined) {
+    return config.scale;
+  }
+
+  const scale = Math.max(
+    state.scale ?? 1,
+    Math.ceil(state.target.width / actualSize.width),
+    Math.ceil(state.target.height / actualSize.height),
+  );
+
+  return Math.min(4, Math.max(1, scale));
 };
 
 const getImageSize = async (

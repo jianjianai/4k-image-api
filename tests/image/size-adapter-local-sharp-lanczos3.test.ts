@@ -8,7 +8,7 @@ describe("createLocalSharpLanczos3SizeAdapter", () => {
     const processor = createProcessor();
     const input = imageInput("512x512");
     const processedInput = await processor.processInput?.(input, context());
-    const output = imageOutput(new Uint8Array([1, 2, 3]));
+    const output = imageOutput(await createPng(512, 512));
     const processedOutput = await processor.processOutput?.(
       output,
       processedInput ?? input,
@@ -44,6 +44,36 @@ describe("createLocalSharpLanczos3SizeAdapter", () => {
     expect(metadata.width).toBe(2048);
     expect(metadata.height).toBe(1024);
     expect(output?.images[0]?.mimeType).toBe("image/png");
+  });
+
+  it("upscales from actual output dimensions without distorting aspect ratio", async () => {
+    const processor = createProcessor();
+    const input = await processor.processInput?.(imageInput("2048x1024"), context());
+    const output = await processor.processOutput?.(
+      imageOutput(await createPng(1000, 1000)),
+      input!,
+      context(),
+    );
+    const metadata = await sharp(output!.images[0]!.bytes).metadata();
+
+    expect(metadata.width).toBe(2048);
+    expect(metadata.height).toBe(2048);
+  });
+
+  it("also satisfies requested size when the request was within max size", async () => {
+    const processor = createProcessor();
+    const input = imageInput("1024x512");
+    const processedInput = await processor.processInput?.(input, context());
+    const output = await processor.processOutput?.(
+      imageOutput(await createPng(512, 512)),
+      processedInput ?? input,
+      context(),
+    );
+    const metadata = await sharp(output!.images[0]!.bytes).metadata();
+
+    expect(processedInput).toBe(input);
+    expect(metadata.width).toBe(1024);
+    expect(metadata.height).toBe(1024);
   });
 
   it("respects maxPixels for square requests", async () => {
@@ -108,6 +138,20 @@ const imageOutput = (bytes: Uint8Array): ImageOutput => ({
     },
   ],
 });
+
+const createPng = async (width: number, height: number): Promise<Uint8Array> =>
+  new Uint8Array(
+    await sharp({
+      create: {
+        width,
+        height,
+        channels: 4,
+        background: "red",
+      },
+    })
+      .png()
+      .toBuffer(),
+  );
 
 const context = () => ({
   providerId: "test-provider",
