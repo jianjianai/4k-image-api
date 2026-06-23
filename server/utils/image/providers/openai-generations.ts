@@ -1,7 +1,10 @@
 import type {
-  ImageEditParamsNonStreaming,
-  ImageGenerateParamsNonStreaming,
-  ImagesResponse,
+  ImageEditCompletedEvent,
+  ImageEditParamsStreaming,
+  ImageEditStreamEvent,
+  ImageGenerateParamsStreaming,
+  ImageGenCompletedEvent,
+  ImageGenStreamEvent,
 } from "openai/resources/images";
 import {
   base64ImageToBytes,
@@ -53,9 +56,11 @@ export const createOpenAIImageGenerationProvider = (
         hasMask: Boolean(input.mask),
       });
 
+      assertStreamingImageModel(input);
+
       if (input.action === "edit") {
-        const response = await client.images.edit(await toImageEditParams(input));
-        const output = imagesResponseToImageOutput(response, input);
+        const stream = await client.images.edit(await toImageEditParams(input));
+        const output = await imagesStreamToImageOutput(stream, input);
 
         imageLog("openai images response", {
           providerId: config.id,
@@ -67,8 +72,8 @@ export const createOpenAIImageGenerationProvider = (
         return output;
       }
 
-      const response = await client.images.generate(toImageGenerateParams(input));
-      const output = imagesResponseToImageOutput(response, input);
+      const stream = await client.images.generate(toImageGenerateParams(input));
+      const output = await imagesStreamToImageOutput(stream, input);
 
       imageLog("openai images response", {
         providerId: config.id,
@@ -92,7 +97,7 @@ export const createOpenAIImageGenerationProvider = (
 
 const toImageGenerateParams = (
   input: ImageInput,
-): ImageGenerateParamsNonStreaming => ({
+): ImageGenerateParamsStreaming => ({
   prompt: input.prompt ?? "",
   model: input.model,
   n: input.n,
@@ -103,14 +108,13 @@ const toImageGenerateParams = (
   moderation: normalizeModeration(input.options?.moderation),
   output_compression: normalizeNumber(input.options?.outputCompression),
   partial_images: normalizeNumber(input.options?.partialImages),
-  response_format: usesDallEImageModel(input.model) ? "b64_json" : undefined,
   user: normalizeString(input.options?.user),
-  stream: false,
+  stream: true,
 });
 
 const toImageEditParams = async (
   input: ImageInput,
-): Promise<ImageEditParamsNonStreaming> => ({
+): Promise<ImageEditParamsStreaming> => ({
   image: await imageAssetsToFiles(input.images),
   prompt: input.prompt ?? "",
   mask: input.mask ? await imageAssetToFile(input.mask) : undefined,
@@ -125,7 +129,7 @@ const toImageEditParams = async (
   partial_images: normalizeNumber(input.options?.partialImages),
   response_format: input.responseFormat,
   user: normalizeString(input.options?.user),
-  stream: false,
+  stream: true,
 });
 
 const imageAssetsToFiles = async (
@@ -150,29 +154,83 @@ const normalizeEditImageQuality = (
   return quality === "hd" ? undefined : quality;
 };
 
-const imagesResponseToImageOutput = (
-  response: ImagesResponse,
+type OpenAIImagesStreamEvent = ImageGenStreamEvent | ImageEditStreamEvent;
+
+type OpenAIImagesCompletedEvent =
+  | ImageGenCompletedEvent
+  | ImageEditCompletedEvent;
+
+const imagesStreamToImageOutput = async (
+  stream: AsyncIterable<OpenAIImagesStreamEvent>,
   input: ImageInput,
-): ImageOutput => {
-  if (!Array.isArray(response.data) || response.data.length === 0) {
-    throw new OpenAIClientError("OpenAI image response did not include image data.");
+): Promise<ImageOutput> => {
+  const raw: OpenAIImagesStreamEvent[] = [];
+  const completedEvents: OpenAIImagesCompletedEvent[] = [];
+  let latestPartialEvent: OpenAIImagesStreamEvent | undefined;
+
+  for await (const event of stream) {
+    raw.push(event);
+
+    if (isCompletedImageEvent(event)) {
+      completedEvents.push(event);
+      continue;
+    }
+
+    if (isPartialImageEvent(event)) {
+      latestPartialEvent = event;
+    }
+  }
+
+  const imageEvents =
+    completedEvents.length > 0
+      ? completedEvents
+      : latestPartialEvent
+        ? [latestPartialEvent]
+        : [];
+
+  if (imageEvents.length === 0) {
+    throw new OpenAIClientError("OpenAI image stream did not include image data.");
   }
 
   return {
-    images: response.data.map((image) => {
-      if (!image.b64_json) {
+    images: imageEvents.map((event) => {
+      if (!event.b64_json) {
         throw missingBase64ImageDataError(
-          "OpenAI image response did not include base64 image data.",
+          "OpenAI image stream did not include base64 image data.",
         );
       }
 
       return {
-        bytes: base64ImageToBytes(image.b64_json),
-        mimeType: imageFormatToMimeType(response.output_format ?? input.format),
-        revisedPrompt: image.revised_prompt,
+        bytes: base64ImageToBytes(event.b64_json),
+        mimeType: imageFormatToMimeType(event.output_format ?? input.format),
       };
     }),
-    usage: usageToImageUsage(response.usage),
-    raw: response,
+    usage: usageToImageUsage(
+      completedEvents[completedEvents.length - 1]?.usage,
+    ),
+    raw,
   };
+};
+
+const isCompletedImageEvent = (
+  event: OpenAIImagesStreamEvent,
+): event is OpenAIImagesCompletedEvent =>
+  event.type === "image_generation.completed" ||
+  event.type === "image_edit.completed";
+
+const isPartialImageEvent = (event: OpenAIImagesStreamEvent): boolean =>
+  event.type === "image_generation.partial_image" ||
+  event.type === "image_edit.partial_image";
+
+const assertStreamingImageModel = (input: ImageInput): void => {
+  if (!usesDallEImageModel(input.model)) {
+    return;
+  }
+
+  throw new OpenAIClientError(
+    "OpenAI Images streaming is not supported for DALL-E image models.",
+    {
+      param: "model",
+    },
+  );
 };

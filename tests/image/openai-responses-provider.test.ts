@@ -6,23 +6,30 @@ const pngBase64 = Buffer.from([1, 2, 3]).toString("base64");
 
 describe("createOpenAIResponsesImageProvider", () => {
   it("invokes SDK responses image generation and maps image_generation_call output", async () => {
-    const create = vi.fn().mockResolvedValue({
-      output: [
+    const create = vi.fn().mockResolvedValue(
+      streamOf([
         {
-          type: "message",
+          type: "response.completed",
+          response: {
+            output: [
+              {
+                type: "message",
+              },
+              {
+                type: "image_generation_call",
+                result: pngBase64,
+                status: "completed",
+              },
+            ],
+            usage: {
+              input_tokens: 4,
+              output_tokens: 5,
+              total_tokens: 9,
+            },
+          },
         },
-        {
-          type: "image_generation_call",
-          result: pngBase64,
-          status: "completed",
-        },
-      ],
-      usage: {
-        input_tokens: 4,
-        output_tokens: 5,
-        total_tokens: 9,
-      },
-    });
+      ]),
+    );
     const provider = createOpenAIResponsesImageProvider(config(), {
       images: { generate: vi.fn() },
       responses: { create },
@@ -64,7 +71,7 @@ describe("createOpenAIResponsesImageProvider", () => {
         },
       ],
       tool_choice: "required",
-      stream: false,
+      stream: true,
     });
     expect(output.images).toEqual([
       {
@@ -80,15 +87,22 @@ describe("createOpenAIResponsesImageProvider", () => {
   });
 
   it("converts edit images to Responses input images and image masks", async () => {
-    const create = vi.fn().mockResolvedValue({
-      output: [
+    const create = vi.fn().mockResolvedValue(
+      streamOf([
         {
-          type: "image_generation_call",
-          result: pngBase64,
-          status: "completed",
+          type: "response.completed",
+          response: {
+            output: [
+              {
+                type: "image_generation_call",
+                result: pngBase64,
+                status: "completed",
+              },
+            ],
+          },
         },
-      ],
-    });
+      ]),
+    );
     const provider = createOpenAIResponsesImageProvider(config(), {
       images: { generate: vi.fn() },
       responses: { create },
@@ -141,10 +155,16 @@ describe("createOpenAIResponsesImageProvider", () => {
         },
       ],
       tool_choice: "required",
-      stream: false,
+      stream: true,
     });
   });
 });
+
+async function* streamOf(events: Record<string, unknown>[]) {
+  for (const event of events) {
+    yield event;
+  }
+}
 
 const config = () => ({
   id: "openai-responses",

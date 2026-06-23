@@ -1,6 +1,7 @@
 import type {
   Response,
-  ResponseCreateParamsNonStreaming,
+  ResponseCreateParamsStreaming,
+  ResponseStreamEvent,
 } from "openai/resources/responses/responses";
 import {
   base64ImageToBytes,
@@ -50,7 +51,8 @@ export const createOpenAIResponsesImageProvider = (
         hasMask: Boolean(input.mask),
       });
 
-      const response = await client.responses.create(toResponseCreateParams(input));
+      const stream = await client.responses.create(toResponseCreateParams(input));
+      const response = await responseStreamToResponse(stream);
       const output = responsesResponseToImageOutput(response, input);
 
       imageLog("openai responses response", {
@@ -73,7 +75,7 @@ export const createOpenAIResponsesImageProvider = (
 
 const toResponseCreateParams = (
   input: ImageInput,
-): ResponseCreateParamsNonStreaming => {
+): ResponseCreateParamsStreaming => {
   const toolOptions = getToolOptions(input);
 
   return {
@@ -98,7 +100,7 @@ const toResponseCreateParams = (
       },
     ],
     tool_choice: "required",
-    stream: false,
+    stream: true,
   };
 };
 
@@ -108,7 +110,7 @@ const toResponseImageAction = (
 
 const toResponseInput = (
   input: ImageInput,
-): ResponseCreateParamsNonStreaming["input"] => {
+): ResponseCreateParamsStreaming["input"] => {
   if (!input.images?.length) {
     return input.prompt;
   }
@@ -133,6 +135,40 @@ const toResponseInput = (
       ],
     },
   ];
+};
+
+const responseStreamToResponse = async (
+  stream: AsyncIterable<ResponseStreamEvent>,
+): Promise<Response> => {
+  let response: Response | undefined;
+
+  for await (const event of stream) {
+    if (event.type === "response.completed") {
+      response = event.response;
+      continue;
+    }
+
+    if (event.type === "response.failed") {
+      throw new OpenAIClientError("OpenAI responses stream failed.");
+    }
+
+    if (event.type === "response.incomplete") {
+      throw new OpenAIClientError("OpenAI responses stream completed incomplete.");
+    }
+
+    if (event.type === "error") {
+      throw new OpenAIClientError(event.message, {
+        code: "invalid_request",
+        param: event.param,
+      });
+    }
+  }
+
+  if (!response) {
+    throw new OpenAIClientError("OpenAI responses stream did not complete.");
+  }
+
+  return response;
 };
 
 const getToolOptions = (

@@ -6,20 +6,20 @@ const pngBase64 = Buffer.from([1, 2, 3]).toString("base64");
 
 describe("createOpenAIImageGenerationProvider", () => {
   it("invokes SDK image generation and maps base64 images to ImageOutput", async () => {
-    const generate = vi.fn().mockResolvedValue({
-      output_format: "webp",
-      data: [
+    const generate = vi.fn().mockResolvedValue(
+      streamOf([
         {
+          type: "image_generation.completed",
           b64_json: pngBase64,
-          revised_prompt: "revised prompt",
+          output_format: "webp",
+          usage: {
+            input_tokens: 2,
+            output_tokens: 3,
+            total_tokens: 5,
+          },
         },
-      ],
-      usage: {
-        input_tokens: 2,
-        output_tokens: 3,
-        total_tokens: 5,
-      },
-    });
+      ]),
+    );
     const provider = createOpenAIImageGenerationProvider(config(), {
       images: {
         createVariation: vi.fn(),
@@ -57,15 +57,13 @@ describe("createOpenAIImageGenerationProvider", () => {
       moderation: "low",
       output_compression: 80,
       partial_images: 1,
-      response_format: undefined,
       user: "user-1",
-      stream: false,
+      stream: true,
     });
     expect(output.images).toEqual([
       {
         bytes: new Uint8Array([1, 2, 3]),
         mimeType: "image/webp",
-        revisedPrompt: "revised prompt",
       },
     ]);
     expect(output.usage).toEqual({
@@ -76,10 +74,15 @@ describe("createOpenAIImageGenerationProvider", () => {
   });
 
   it("converts edit inputs to SDK image edits", async () => {
-    const edit = vi.fn().mockResolvedValue({
-      output_format: "png",
-      data: [{ b64_json: pngBase64 }],
-    });
+    const edit = vi.fn().mockResolvedValue(
+      streamOf([
+        {
+          type: "image_edit.completed",
+          b64_json: pngBase64,
+          output_format: "png",
+        },
+      ]),
+    );
     const provider = createOpenAIImageGenerationProvider(config(), {
       images: {
         createVariation: vi.fn(),
@@ -112,11 +115,43 @@ describe("createOpenAIImageGenerationProvider", () => {
         input_fidelity: "high",
         output_compression: 90,
         user: "user-1",
-        stream: false,
+        stream: true,
       }),
     );
   });
+
+  it("fails before calling upstream for DALL-E streaming requests", async () => {
+    const generate = vi.fn();
+    const provider = createOpenAIImageGenerationProvider(
+      {
+        ...config(),
+        models: ["dall-e-3"],
+      },
+      {
+        images: {
+          createVariation: vi.fn(),
+          edit: vi.fn(),
+          generate,
+        },
+        responses: { create: vi.fn() },
+      } as never,
+    );
+
+    await expect(
+      provider.invoke({
+        ...baseInput(),
+        model: "dall-e-3",
+      }),
+    ).rejects.toThrow("OpenAI Images streaming is not supported");
+    expect(generate).not.toHaveBeenCalled();
+  });
 });
+
+async function* streamOf(events: Record<string, unknown>[]) {
+  for (const event of events) {
+    yield event;
+  }
+}
 
 const config = () => ({
   id: "openai-generations",
