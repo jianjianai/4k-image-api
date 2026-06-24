@@ -1,3 +1,5 @@
+**项目功能较少，欢迎使用AI添加自己需要的功能后PR**
+
 # 4K Image API
 
 一个基于 Nitro v3 的 OpenAI 兼容生图 API 服务。前端或第三方客户端可以按 OpenAI Images / Responses 的请求格式调用本服务，后端再按配置把统一后的图片任务分发给不同提供商。
